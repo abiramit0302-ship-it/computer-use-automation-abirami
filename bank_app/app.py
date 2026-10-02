@@ -2,11 +2,15 @@
 
 This is the TARGET application our automation system drives. It is not part
 of the automation system itself.
+
+Faults can be switched on at startup for testing, e.g.:
+    BANK_FAULTS=notice,slow flask --app bank_app.app run --port 5050
 """
 
 import os
 import random
 import re
+import time
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 
@@ -25,6 +29,17 @@ OPERATOR_USER = os.environ.get("BANK_USER")
 OPERATOR_PASSWORD = os.environ.get("BANK_PASSWORD")
 if not OPERATOR_USER or not OPERATOR_PASSWORD:
     raise RuntimeError("Set BANK_USER and BANK_PASSWORD in .env (see .env.example)")
+
+# --- Fault injection (test-only behavior, off by default) ---------------------
+KNOWN_FAULTS = {"notice", "slow", "timeout", "outage"}
+FAULTS = {f.strip() for f in os.environ.get("BANK_FAULTS", "").split(",") if f.strip()}
+unknown_faults = FAULTS - KNOWN_FAULTS
+if unknown_faults:
+    raise RuntimeError(f"Unknown BANK_FAULTS {sorted(unknown_faults)}; "
+                       f"choose from {sorted(KNOWN_FAULTS)}")
+SLOW_SECONDS = float(os.environ.get("BANK_SLOW_SECONDS", "4"))
+print(f"[bank_app] Active faults: {', '.join(sorted(FAULTS)) or 'none'}")
+# -------------------------------------------------------------------------------
 
 MEMBER_ID_PATTERN = re.compile(r"^\d{5}$")
 
@@ -102,6 +117,8 @@ def login():
                 next_path = url_for("search")
             return redirect(next_path)
         error = "Invalid operator ID or password."
+    elif request.args.get("expired"):
+        error = "Your session has expired. Please sign on again."
     return render_template("login.html", error=error)
 
 
@@ -114,6 +131,7 @@ def logout():
 @app.route("/search", methods=["GET", "POST"])
 @login_required
 def search():
+    show_notice = "notice" in FAULTS and not session.get("notice_acknowledged")
     message = None
     member_id = ""
     if request.method == "POST":
@@ -124,12 +142,32 @@ def search():
             message = f"No member found with ID {member_id}."
         else:
             return redirect(url_for("member_detail", member_id=member_id))
-    return render_template("search.html", message=message, member_id=member_id)
+    return render_template("search.html", message=message, member_id=member_id,
+                           show_notice=show_notice)
+
+
+@app.route("/notice/acknowledge", methods=["POST"])
+@login_required
+def acknowledge_notice():
+    session["notice_acknowledged"] = True
+    return redirect(url_for("search"))
 
 
 @app.route("/member/<member_id>")
 @login_required
 def member_detail(member_id):
+    # Fault: the session expires once, the first time a member page is opened.
+    if "timeout" in FAULTS and not session.get("timeout_fired"):
+        session["timeout_fired"] = True   # kept, so signing on again won't loop forever
+        session.pop("operator", None)     # signed out
+        return redirect(url_for("login", next=request.path, expired=1))
+    # Fault: the core banking system behind this page is down.
+    if "outage" in FAULTS:
+        return render_template("core_error.html"), 503
+    # Fault: the page is slow to respond.
+    if "slow" in FAULTS:
+        time.sleep(SLOW_SECONDS)
+
     member, error_page = load_member(member_id)
     if error_page:
         return error_page

@@ -9,4 +9,16 @@
   <tr><td></td><td><input type="submit" value="Search"></td></tr>
 </table>
 </form>
+
+{% if show_notice %}
+<div style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);">
+  <form method="post" action="{{ url_for('acknowledge_notice') }}">
+  <table class="panel" width="420" cellspacing="0" style="margin: 120px auto 0 auto;">
+    <tr class="title"><td>System Notice</td></tr>
+    <tr><td>Scheduled maintenance tonight from 11:00 PM to 1:00 AM ET. Core inquiries may be unavailable during this window.</td></tr>
+    <tr><td align="right"><input type="submit" value="Acknowledge"></td></tr>
+  </table>
+  </form>
+</div>
+{% endif %}
 {% endblock %}

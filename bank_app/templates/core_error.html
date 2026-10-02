@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}System Error{% endblock %}
+{% block content %}
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td>System Error</td></tr>
+  <tr><td class="err">Core system unavailable (error CS-503). Please try again later or contact the help desk.</td></tr>
+  <tr><td><a href="{{ url_for('search') }}">Return to Member Inquiry</a></td></tr>
+</table>
+{% endblock %}
