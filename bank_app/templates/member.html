@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Member {{ member_id }}{% endblock %}
+{% block content %}
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td colspan="4">Member Profile</td></tr>
+  <tr>
+    <td width="120">Member ID:</td><td>{{ member_id }}</td>
+    <td width="120">Date of Birth:</td><td>{{ member.dob }}</td>
+  </tr>
+  <tr>
+    <td>Name:</td><td>{{ member.name }}</td>
+    <td>SSN (last 4):</td><td>***-**-{{ member.ssn_last4 }}</td>
+  </tr>
+</table>
+<br>
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td colspan="3">Accounts</td></tr>
+  <tr><td><b>Account Type</b></td><td><b>Account No.</b></td><td align="right"><b>Balance</b></td></tr>
+  {% for acct in member.accounts %}
+  <tr>
+    <td>{{ acct.type }}</td>
+    <td>{{ acct.number }}</td>
+    <td align="right">${{ "{:,.2f}".format(acct.balance) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<br>
+<a href="{{ url_for('search') }}">New Search</a>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Access Denied{% endblock %}
+{% block content %}
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td>Access Denied</td></tr>
+  <tr><td class="err">Restricted account: supervisor access required for member {{ member_id }}.</td></tr>
+  <tr><td><a href="{{ url_for('search') }}">Return to Member Inquiry</a></td></tr>
+</table>
+{% endblock %}

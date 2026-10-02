@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign On{% endblock %}
+{% block content %}
+<form method="post">
+<table class="panel" width="400" align="center" cellspacing="0">
+  <tr class="title"><td colspan="2">Operator Sign On</td></tr>
+  {% if error %}<tr><td colspan="2" class="err">{{ error }}</td></tr>{% endif %}
+  <tr><td>Operator ID:</td><td><input name="f1" autocomplete="off"></td></tr>
+  <tr><td>Password:</td><td><input name="f2" type="password"></td></tr>
+  <tr><td></td><td><input type="submit" value="Sign On"></td></tr>
+</table>
+</form>
+{% endblock %}
