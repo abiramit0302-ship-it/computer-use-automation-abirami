@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Account Opened{% endblock %}
+{% block content %}
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td colspan="2">Account Opened Successfully</td></tr>
+  <tr><td width="140">Confirmation No.:</td><td><b>{{ receipt.confirmation }}</b></td></tr>
+  <tr><td>Account No.:</td><td>{{ receipt.number }}</td></tr>
+  <tr><td>Account Type:</td><td>{{ receipt.type }}</td></tr>
+  <tr><td>Initial Deposit:</td><td>${{ deposit_display }}</td></tr>
+  <tr><td colspan="2"><a href="{{ url_for('member_detail', member_id=member_id) }}">Return to Member Profile</a></td></tr>
+</table>
+{% endblock %}

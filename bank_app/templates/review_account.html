@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Review Request{% endblock %}
+{% block content %}
+<form method="post">
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td colspan="2">Review Account Request &nbsp;-&nbsp; Member {{ member_id }}</td></tr>
+  <tr><td colspan="2">Please verify the details below. Confirming will open the account immediately.</td></tr>
+  <tr><td width="140">Account Type:</td><td>{{ pending.type }}</td></tr>
+  <tr><td>Initial Deposit:</td><td>${{ deposit_display }}</td></tr>
+  <tr><td>Nickname:</td><td>{{ pending.nickname or "(none)" }}</td></tr>
+  <tr>
+    <td></td>
+    <td>
+      <input type="submit" name="action" value="Confirm">
+      <input type="submit" name="action" value="Cancel">
+    </td>
+  </tr>
+</table>
+</form>
+{% endblock %}

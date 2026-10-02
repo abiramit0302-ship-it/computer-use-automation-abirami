@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Open Sub-Account{% endblock %}
+{% block content %}
+<form method="post">
+<table class="panel" width="100%" cellspacing="0">
+  <tr class="title"><td colspan="2">Open Sub-Account &nbsp;-&nbsp; Member {{ member_id }} ({{ member.name }})</td></tr>
+  {% if error %}<tr><td colspan="2" class="err">{{ error }}</td></tr>{% endif %}
+  <tr>
+    <td width="140">Account Type:</td>
+    <td>
+      <select name="f1">
+        <option value="">-- Select --</option>
+        {% for name in account_types %}
+        <option value="{{ name }}" {% if form.type == name %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </td>
+  </tr>
+  <tr><td>Initial Deposit ($):</td><td><input name="f2" value="{{ form.deposit }}" size="12"></td></tr>
+  <tr><td>Nickname (optional):</td><td><input name="f3" value="{{ form.nickname }}" size="24"></td></tr>
+  <tr><td></td><td><input type="submit" value="Continue"></td></tr>
+</table>
+</form>
+{% endblock %}
