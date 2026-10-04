@@ -1,0 +1,634 @@
+{
+  "$defs": {
+    "Anchor": {
+      "additionalProperties": false,
+      "description": "A control described the way a person would: its role and visible name.",
+      "properties": {
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "Anchor",
+      "type": "object"
+    },
+    "ClickAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "click",
+          "default": "click",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ClickAction",
+      "type": "object"
+    },
+    "Detector": {
+      "additionalProperties": false,
+      "description": "Recognizes a state by what's on screen, as a human would, not by HTTP status codes.",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "pattern": "^/",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "title": "Detector",
+      "type": "object"
+    },
+    "DismissRecovery": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "dismiss",
+          "default": "dismiss",
+          "title": "Type",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "DismissRecovery",
+      "type": "object"
+    },
+    "Expectation": {
+      "additionalProperties": false,
+      "description": "A checkpoint: what must be true after a step, so we never assume a click worked.",
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "pattern": "^/",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "visible": {
+          "items": {
+            "$ref": "#/$defs/Anchor"
+          },
+          "title": "Visible",
+          "type": "array"
+        }
+      },
+      "title": "Expectation",
+      "type": "object"
+    },
+    "ExtractAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "extract",
+          "default": "extract",
+          "title": "Type",
+          "type": "string"
+        },
+        "into": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Into",
+          "type": "string"
+        },
+        "parse": {
+          "default": "text",
+          "enum": [
+            "text",
+            "money"
+          ],
+          "title": "Parse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "into"
+      ],
+      "title": "ExtractAction",
+      "type": "object"
+    },
+    "FillAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "fill",
+          "default": "fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "FillAction",
+      "type": "object"
+    },
+    "Interstitial": {
+      "additionalProperties": false,
+      "description": "An app-wide state that can interrupt any task: a popup, an expired session, an outage.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "detect": {
+          "$ref": "#/$defs/Detector"
+        },
+        "kind": {
+          "enum": [
+            "recoverable",
+            "hard_failure"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "recovery": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "dismiss": "#/$defs/DismissRecovery",
+                  "reauthenticate": "#/$defs/ReauthenticateRecovery"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/DismissRecovery"
+                },
+                {
+                  "$ref": "#/$defs/ReauthenticateRecovery"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recovery"
+        }
+      },
+      "required": [
+        "description",
+        "detect",
+        "kind"
+      ],
+      "title": "Interstitial",
+      "type": "object"
+    },
+    "NavigateAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "navigate",
+          "default": "navigate",
+          "title": "Type",
+          "type": "string"
+        },
+        "route": {
+          "pattern": "^/",
+          "title": "Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "route"
+      ],
+      "title": "NavigateAction",
+      "type": "object"
+    },
+    "NthOfRoleLocator": {
+      "additionalProperties": false,
+      "description": "Last-resort fallback by position. Fragile: replay records a warning when it's used.",
+      "properties": {
+        "strategy": {
+          "const": "nth_of_role",
+          "default": "nth_of_role",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "index"
+      ],
+      "title": "NthOfRoleLocator",
+      "type": "object"
+    },
+    "ReauthenticateRecovery": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "reauthenticate",
+          "default": "reauthenticate",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ReauthenticateRecovery",
+      "type": "object"
+    },
+    "Risk": {
+      "enum": [
+        "read_only",
+        "reversible",
+        "irreversible"
+      ],
+      "title": "Risk",
+      "type": "string"
+    },
+    "RoleInScopeLocator": {
+      "additionalProperties": false,
+      "description": "An unnamed control inside a named container, e.g. the textbox in row 'Member ID:'.",
+      "properties": {
+        "strategy": {
+          "const": "role_in_scope",
+          "default": "role_in_scope",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/Anchor"
+        }
+      },
+      "required": [
+        "role",
+        "scope"
+      ],
+      "title": "RoleInScopeLocator",
+      "type": "object"
+    },
+    "RoleNameLocator": {
+      "additionalProperties": false,
+      "description": "Best rung: the control has its own accessible name, e.g. button 'Search'.",
+      "properties": {
+        "strategy": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleNameLocator",
+      "type": "object"
+    },
+    "SelectAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "select",
+          "default": "select",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "SelectAction",
+      "type": "object"
+    },
+    "SignOn": {
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "pattern": "^/",
+          "title": "Route",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "success": {
+          "$ref": "#/$defs/Expectation"
+        }
+      },
+      "required": [
+        "route",
+        "steps",
+        "success"
+      ],
+      "title": "SignOn",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "minLength": 1,
+          "title": "Intent",
+          "type": "string"
+        },
+        "action": {
+          "discriminator": {
+            "mapping": {
+              "click": "#/$defs/ClickAction",
+              "extract": "#/$defs/ExtractAction",
+              "fill": "#/$defs/FillAction",
+              "navigate": "#/$defs/NavigateAction",
+              "select": "#/$defs/SelectAction"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NavigateAction"
+            },
+            {
+              "$ref": "#/$defs/FillAction"
+            },
+            {
+              "$ref": "#/$defs/SelectAction"
+            },
+            {
+              "$ref": "#/$defs/ClickAction"
+            },
+            {
+              "$ref": "#/$defs/ExtractAction"
+            }
+          ],
+          "title": "Action"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "risk": {
+          "$ref": "#/$defs/Risk"
+        },
+        "expect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcomes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "intent",
+        "action",
+        "risk"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "TableCellLocator": {
+      "additionalProperties": false,
+      "description": "A cell found by meaning: the row containing `row_where`, in the column headed `column`.",
+      "properties": {
+        "strategy": {
+          "const": "table_cell",
+          "default": "table_cell",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "row_where": {
+          "title": "Row Where",
+          "type": "string"
+        },
+        "column": {
+          "title": "Column",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_where",
+        "column"
+      ],
+      "title": "TableCellLocator",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "description": "A control to act on, with locators ranked from most to least robust.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "locators": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "nth_of_role": "#/$defs/NthOfRoleLocator",
+                "role_in_scope": "#/$defs/RoleInScopeLocator",
+                "role_name": "#/$defs/RoleNameLocator",
+                "table_cell": "#/$defs/TableCellLocator"
+              },
+              "propertyName": "strategy"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleNameLocator"
+              },
+              {
+                "$ref": "#/$defs/RoleInScopeLocator"
+              },
+              {
+                "$ref": "#/$defs/NthOfRoleLocator"
+              },
+              {
+                "$ref": "#/$defs/TableCellLocator"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Locators",
+          "type": "array"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "description",
+        "locators"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "Timing": {
+      "additionalProperties": false,
+      "properties": {
+        "action_timeout_ms": {
+          "default": 5000,
+          "exclusiveMinimum": 0,
+          "title": "Action Timeout Ms",
+          "type": "integer"
+        },
+        "navigation_timeout_ms": {
+          "default": 10000,
+          "exclusiveMinimum": 0,
+          "title": "Navigation Timeout Ms",
+          "type": "integer"
+        },
+        "max_recoveries_per_step": {
+          "default": 2,
+          "minimum": 0,
+          "title": "Max Recoveries Per Step",
+          "type": "integer"
+        }
+      },
+      "title": "Timing",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "product_version": {
+      "title": "Product Version",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "secrets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Secrets",
+      "type": "array"
+    },
+    "sign_on": {
+      "$ref": "#/$defs/SignOn"
+    },
+    "interstitials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Interstitial"
+      },
+      "title": "Interstitials",
+      "type": "object"
+    },
+    "timing": {
+      "$ref": "#/$defs/Timing"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "product_version",
+    "description",
+    "sign_on"
+  ],
+  "title": "AppProfile",
+  "type": "object"
+}

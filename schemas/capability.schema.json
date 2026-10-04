@@ -1,0 +1,727 @@
+{
+  "$defs": {
+    "Anchor": {
+      "additionalProperties": false,
+      "description": "A control described the way a person would: its role and visible name.",
+      "properties": {
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "Anchor",
+      "type": "object"
+    },
+    "BusinessOutcome": {
+      "additionalProperties": false,
+      "description": "A legitimate, non-success answer the caller needs, e.g. 'no such member'.",
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "detect": {
+          "$ref": "#/$defs/Detector"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "detect"
+      ],
+      "title": "BusinessOutcome",
+      "type": "object"
+    },
+    "CapabilityMeta": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "draft"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "app_profile": {
+          "title": "App Profile",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "summary",
+        "app_profile"
+      ],
+      "title": "CapabilityMeta",
+      "type": "object"
+    },
+    "ClickAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "click",
+          "default": "click",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ClickAction",
+      "type": "object"
+    },
+    "Detector": {
+      "additionalProperties": false,
+      "description": "Recognizes a state by what's on screen, as a human would, not by HTTP status codes.",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "pattern": "^/",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "title": "Detector",
+      "type": "object"
+    },
+    "Expectation": {
+      "additionalProperties": false,
+      "description": "A checkpoint: what must be true after a step, so we never assume a click worked.",
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "pattern": "^/",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "visible": {
+          "items": {
+            "$ref": "#/$defs/Anchor"
+          },
+          "title": "Visible",
+          "type": "array"
+        }
+      },
+      "title": "Expectation",
+      "type": "object"
+    },
+    "ExtractAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "extract",
+          "default": "extract",
+          "title": "Type",
+          "type": "string"
+        },
+        "into": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Into",
+          "type": "string"
+        },
+        "parse": {
+          "default": "text",
+          "enum": [
+            "text",
+            "money"
+          ],
+          "title": "Parse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "into"
+      ],
+      "title": "ExtractAction",
+      "type": "object"
+    },
+    "FillAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "fill",
+          "default": "fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "FillAction",
+      "type": "object"
+    },
+    "InputParam": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ValueType"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/Sensitivity"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description",
+        "sensitivity"
+      ],
+      "title": "InputParam",
+      "type": "object"
+    },
+    "NavigateAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "navigate",
+          "default": "navigate",
+          "title": "Type",
+          "type": "string"
+        },
+        "route": {
+          "pattern": "^/",
+          "title": "Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "route"
+      ],
+      "title": "NavigateAction",
+      "type": "object"
+    },
+    "NthOfRoleLocator": {
+      "additionalProperties": false,
+      "description": "Last-resort fallback by position. Fragile: replay records a warning when it's used.",
+      "properties": {
+        "strategy": {
+          "const": "nth_of_role",
+          "default": "nth_of_role",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "index"
+      ],
+      "title": "NthOfRoleLocator",
+      "type": "object"
+    },
+    "OutputParam": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ValueType"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/Sensitivity"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description",
+        "sensitivity"
+      ],
+      "title": "OutputParam",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Where the recipe came from. Links to the discovery run; never embeds its transcript.",
+      "properties": {
+        "discovered_by": {
+          "title": "Discovered By",
+          "type": "string"
+        },
+        "discovery_run_id": {
+          "title": "Discovery Run Id",
+          "type": "string"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "discovered_by",
+        "discovery_run_id",
+        "recorded_at",
+        "goal"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Risk": {
+      "enum": [
+        "read_only",
+        "reversible",
+        "irreversible"
+      ],
+      "title": "Risk",
+      "type": "string"
+    },
+    "RoleInScopeLocator": {
+      "additionalProperties": false,
+      "description": "An unnamed control inside a named container, e.g. the textbox in row 'Member ID:'.",
+      "properties": {
+        "strategy": {
+          "const": "role_in_scope",
+          "default": "role_in_scope",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/Anchor"
+        }
+      },
+      "required": [
+        "role",
+        "scope"
+      ],
+      "title": "RoleInScopeLocator",
+      "type": "object"
+    },
+    "RoleNameLocator": {
+      "additionalProperties": false,
+      "description": "Best rung: the control has its own accessible name, e.g. button 'Search'.",
+      "properties": {
+        "strategy": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleNameLocator",
+      "type": "object"
+    },
+    "SelectAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "select",
+          "default": "select",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "SelectAction",
+      "type": "object"
+    },
+    "Sensitivity": {
+      "description": "Drives redaction: logging code decides what to hide from this label.",
+      "enum": [
+        "public",
+        "identifier",
+        "pii",
+        "financial",
+        "secret"
+      ],
+      "title": "Sensitivity",
+      "type": "string"
+    },
+    "Status": {
+      "enum": [
+        "draft",
+        "approved",
+        "deprecated"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "minLength": 1,
+          "title": "Intent",
+          "type": "string"
+        },
+        "action": {
+          "discriminator": {
+            "mapping": {
+              "click": "#/$defs/ClickAction",
+              "extract": "#/$defs/ExtractAction",
+              "fill": "#/$defs/FillAction",
+              "navigate": "#/$defs/NavigateAction",
+              "select": "#/$defs/SelectAction"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NavigateAction"
+            },
+            {
+              "$ref": "#/$defs/FillAction"
+            },
+            {
+              "$ref": "#/$defs/SelectAction"
+            },
+            {
+              "$ref": "#/$defs/ClickAction"
+            },
+            {
+              "$ref": "#/$defs/ExtractAction"
+            }
+          ],
+          "title": "Action"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "risk": {
+          "$ref": "#/$defs/Risk"
+        },
+        "expect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcomes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "intent",
+        "action",
+        "risk"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "SuccessCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "outputs_present": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Outputs Present",
+          "type": "array"
+        },
+        "visible": {
+          "items": {
+            "$ref": "#/$defs/Anchor"
+          },
+          "title": "Visible",
+          "type": "array"
+        }
+      },
+      "title": "SuccessCondition",
+      "type": "object"
+    },
+    "TableCellLocator": {
+      "additionalProperties": false,
+      "description": "A cell found by meaning: the row containing `row_where`, in the column headed `column`.",
+      "properties": {
+        "strategy": {
+          "const": "table_cell",
+          "default": "table_cell",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "row_where": {
+          "title": "Row Where",
+          "type": "string"
+        },
+        "column": {
+          "title": "Column",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_where",
+        "column"
+      ],
+      "title": "TableCellLocator",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "description": "A control to act on, with locators ranked from most to least robust.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "locators": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "nth_of_role": "#/$defs/NthOfRoleLocator",
+                "role_in_scope": "#/$defs/RoleInScopeLocator",
+                "role_name": "#/$defs/RoleNameLocator",
+                "table_cell": "#/$defs/TableCellLocator"
+              },
+              "propertyName": "strategy"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleNameLocator"
+              },
+              {
+                "$ref": "#/$defs/RoleInScopeLocator"
+              },
+              {
+                "$ref": "#/$defs/NthOfRoleLocator"
+              },
+              {
+                "$ref": "#/$defs/TableCellLocator"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Locators",
+          "type": "array"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "description",
+        "locators"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "ValueType": {
+      "enum": [
+        "string",
+        "integer",
+        "money"
+      ],
+      "title": "ValueType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "meta": {
+      "$ref": "#/$defs/CapabilityMeta"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/InputParam"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputParam"
+      },
+      "title": "Outputs",
+      "type": "array"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "outcomes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BusinessOutcome"
+      },
+      "title": "Outcomes",
+      "type": "object"
+    },
+    "success": {
+      "$ref": "#/$defs/SuccessCondition"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    }
+  },
+  "required": [
+    "schema_version",
+    "meta",
+    "steps",
+    "success",
+    "provenance"
+  ],
+  "title": "Capability",
+  "type": "object"
+}
