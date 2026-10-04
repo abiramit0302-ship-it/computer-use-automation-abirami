@@ -8,6 +8,10 @@ Three layers, applied in order:
      personal data ('Name:'); that value is masked in accessibility-tree text.
   3. Patterns: a backstop for well-known shapes (SSNs, card numbers, dates, money, emails).
 No single layer is enough; together they cover each other's gaps.
+
+Matching policy: SECRETS are replaced anywhere, even inside other text, because a leaked
+credential is an incident while an over-redacted log line is only a nuisance. Other values
+are replaced as whole tokens, so '12345' is masked in '/member/12345' but not in '9912345'.
 """
 
 import re
@@ -22,7 +26,8 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("SSN", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
     ("SSN", re.compile(r"\*{3}-\*{2}-\d{4}")),                # masked form shown on screen
     ("CARD", re.compile(r"\b(?:\d[ -]?){12,18}\d\b")),         # 13-19 digit card numbers
-    ("EMAIL", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")),
+    # Real addresses end in a LETTER domain (.com, .org), so 'name@1.0.0' is not an email.
+    ("EMAIL", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b")),
     ("DATE", re.compile(r"\b\d{4}-\d{2}-\d{2}\b")),            # dates of birth
     ("MONEY", re.compile(r"\$\s?\d[\d,]*(?:\.\d{2})?")),
 ]
@@ -35,7 +40,7 @@ def _mask_identifier(value: str) -> str:
 
 class Redactor:
     def __init__(self, sensitive_labels: Iterable[str] = ()):
-        self._replacements: dict[str, str] = {}
+        self._replacements: dict[str, tuple[re.Pattern[str], str]] = {}
         self._label_rules: list[tuple[re.Pattern[str], str]] = []
         for label in sensitive_labels:
             escaped = re.escape(label)
@@ -59,12 +64,18 @@ class Redactor:
             token = f"[{name}:{_mask_identifier(value)}]"
         else:
             token = f"[{sensitivity.value.upper()}:{name}]"
-        self._replacements[value] = token
+        escaped = re.escape(value)
+        if sensitivity == Sensitivity.SECRET:
+            pattern = re.compile(escaped)                      # anywhere, even inside other text
+        else:
+            pattern = re.compile(rf"(?<!\w){escaped}(?!\w)")   # whole tokens only
+        self._replacements[value] = (pattern, token)
 
     def redact(self, text: str) -> str:
         # Longest values first, so a value containing another is replaced whole.
         for value in sorted(self._replacements, key=len, reverse=True):
-            text = text.replace(value, self._replacements[value])
+            pattern, token = self._replacements[value]
+            text = pattern.sub(lambda _match, token=token: token, text)
         for pattern, replacement in self._label_rules:
             text = pattern.sub(replacement, text)
         for label, pattern in PATTERNS:

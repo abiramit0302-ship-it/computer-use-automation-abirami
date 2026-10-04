@@ -100,3 +100,21 @@ def test_run_log_only_ever_writes_redacted_data(tmp_path):
     first = json.loads((run_dir / "events.jsonl").read_text().splitlines()[0])
     assert first["seq"] == 1
     assert first["step_id"] == "enter_password"
+
+def test_artifact_labels_are_not_mistaken_for_emails():
+    text = "replaying member.lookup_balance@1.0.0"
+    assert Redactor().redact(text) == text
+    assert "jordan" not in Redactor().redact("contact jordan.ellis@example.com")
+
+
+def test_identifiers_are_matched_as_whole_tokens():
+    redactor = Redactor()
+    redactor.register("member_id", "12345", Sensitivity.IDENTIFIER)
+    out = redactor.redact("member 12345, account 12345-S00, ticket 9912345")
+    assert out == "member [member_id:***45], account [member_id:***45]-S00, ticket 9912345"
+
+
+def test_secrets_are_redacted_even_inside_other_text():
+    redactor = Redactor()
+    redactor.register("api_token", "s3cr3t", Sensitivity.SECRET)
+    assert "s3cr3t" not in redactor.redact("Authorization=xs3cr3tx")
