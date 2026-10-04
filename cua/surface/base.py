@@ -97,3 +97,7 @@ class Surface(ABC):
     @abstractmethod
     def screenshot(self, path: Path, sensitive_labels: Sequence[str] = ()) -> None:
         """Save an image of the current screen for evidence, masking sensitive values."""
+
+    def navigation_pending(self) -> bool:
+        """Is a page load still in progress? Surfaces that can't tell simply return False."""
+        return False

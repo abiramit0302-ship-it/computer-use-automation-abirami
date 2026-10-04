@@ -29,8 +29,12 @@ class WebSurface(Surface):
         self.base_url = base_url.rstrip("/")
         self.timing = timing
         self.blocked: list[str] = []  # URLs the request guard refused, in order
+        self._navigations_in_flight: set = set()
         page.set_default_timeout(timing.action_timeout_ms)
         page.set_default_navigation_timeout(timing.navigation_timeout_ms)
+        page.on("request", self._on_request)
+        page.on("requestfinished", self._on_request_done)
+        page.on("requestfailed", self._on_request_done)
 
     # --- Looking -------------------------------------------------------------------
 
@@ -97,11 +101,21 @@ class WebSurface(Surface):
            ]
            masks.append(self.page.get_by_role("cell", name=MONEY_CELL))  # every money amount
            self.page.screenshot(path=str(path), full_page=True, mask=masks)
-           
+
     def _raise_if_blocked(self, count_before: int) -> None:
         """If the guard refused a request during the last action, turn that into a clear error."""
         if len(self.blocked) > count_before:
             raise NavigationBlocked(self.blocked[-1])
+
+    def navigation_pending(self) -> bool:
+        return bool(self._navigations_in_flight)
+
+    def _on_request(self, request) -> None:
+        if request.is_navigation_request():
+            self._navigations_in_flight.add(request)
+
+    def _on_request_done(self, request) -> None:
+        self._navigations_in_flight.discard(request)
 
     # --- Finding controls ----------------------------------------------------------
 

@@ -21,11 +21,14 @@ from cua.replay.result import (
     EscalationInfo, FailureCategory, FailureInfo, OutcomeInfo, ReplayResult, ReplayStatus,
 )
 from cua.schema import (
-    AppProfile, Capability, ClickAction, Expectation, ExtractAction, FillAction,
-    NavigateAction, SelectAction, Sensitivity, Status, Step,
+    AppProfile, BusinessOutcome, Capability, ClickAction, Detector, DismissRecovery,
+    Expectation, ExtractAction, FillAction, Interstitial, NavigateAction,
+    ReauthenticateRecovery, Risk, SelectAction, Sensitivity, Status, Step,
 )
 from cua.secrets import MissingSecret, SecretStore
-from cua.surface import NavigationBlocked, Resolution, Surface, TargetNotFound, open_web_surface
+from cua.surface import (
+    NavigationBlocked, Resolution, Surface, SurfaceError, TargetNotFound, open_web_surface,
+)
 from cua.templating import render_model
 
 SLOW_STEP_SECONDS = 2.0  # steps slower than this are flagged in warnings
@@ -93,6 +96,8 @@ class _Execution:
         self.warnings: list[str] = []
         self.recoveries: list[str] = []
         self.started = time.monotonic()
+        self._recovery_counts: dict[str, int] = {}  # 3b: recoveries attempted, per step
+        self._signing_on = False                    # 3b: guards against re-auth inside re-auth
 
     # --- The run as a whole ------------------------------------------------------
 
@@ -190,23 +195,31 @@ class _Execution:
     # --- Signing on ---------------------------------------------------------------
 
     def _sign_on(self) -> None:
+        """Sign on. Also used as the recovery for an expired session."""
         sign_on = self.profile.sign_on
-        self.log.event("sign_on", "signing on")
-        if self.surface.current_route() != sign_on.route:
-            self.surface.goto(sign_on.route)
-        for step in sign_on.steps:
-            self._run_step(step, values={"secrets": self.secret_values}, sign_on=True)
-        if not self._wait_for(sign_on.success):
-            raise self._failure(FailureCategory.SIGN_ON_FAILED, "sign-on did not reach a signed-in page",
-                                expected=self._describe(sign_on.success),
-                                observed=self._describe_screen())
-        self.log.event("signed_on", "signed on")
+        self._signing_on = True  # 3b
+        try:
+            self.log.event("sign_on", "signing on")
+            # If we're already on the sign-on page (e.g. after a session timeout), stay: the
+            # page remembers where we were going, so signing on resumes the interrupted flow.
+            if self.surface.current_route() != sign_on.route:
+                self.surface.goto(sign_on.route)
+            for step in sign_on.steps:
+                self._run_step(step, values={"secrets": self.secret_values}, sign_on=True)
+            if not self._wait_for(sign_on.success):
+                raise self._failure(FailureCategory.SIGN_ON_FAILED,
+                                    "sign-on did not reach a signed-in page",
+                                    expected=self._describe(sign_on.success),
+                                    observed=self._describe_screen())
+            self.log.event("signed_on", "signed on")
+        finally:
+            self._signing_on = False
 
     # --- Running one step ---------------------------------------------------------
 
     def _run_step(self, step: Step, values: dict | None = None, *, sign_on: bool = False) -> None:
         values = values if values is not None else {"inputs": self.inputs}
-        self._handle_interruptions(step)  # filled in during part 3b
+        self._handle_interruptions(step)
 
         rendered = render_model(step, values)  # filled-in copy: used for acting, NEVER logged
         decision = self.policy.check_step(rendered, self.surface.current_route())
@@ -217,30 +230,44 @@ class _Execution:
         if decision.verdict == Verdict.REQUIRE_APPROVAL:
             raise self._escalation(step, decision.reason)
 
-        not_found = FailureCategory.SIGN_ON_FAILED if sign_on else FailureCategory.TARGET_NOT_FOUND
-        timed_out = FailureCategory.SIGN_ON_FAILED if sign_on else FailureCategory.TIMEOUT
         started = time.monotonic()
-        try:
-            self._act(rendered)
-        except TargetNotFound as exc:
-            raise self._failure(not_found, str(exc), step=step,
-                                expected=f"exactly one '{step.target.description}'",
-                                observed=self._describe_screen()) from None
-        except NavigationBlocked as exc:
-            raise self._failure(FailureCategory.POLICY_DENIED, str(exc), step=step) from None
-        except PlaywrightTimeout as exc:
-            raise self._failure(timed_out, _first_line(exc), step=step,
-                                observed=self._describe_screen()) from None
-        except PlaywrightError as exc:
-            raise self._failure(FailureCategory.APP_ERROR, _first_line(exc), step=step) from None
-
+        self._act_with_recovery(step, rendered, sign_on=sign_on)  # 3b
         if rendered.expect is not None:
-            self._verify(step, rendered.expect, sign_on=sign_on)
+            self._verify(step, rendered, sign_on=sign_on)
 
         elapsed = time.monotonic() - started
         if elapsed > SLOW_STEP_SECONDS:
             self.warnings.append(f"step '{step.id}' took {elapsed:.1f}s (slow response)")
         self.log.event("step_done", "step complete", step_id=step.id, seconds=round(elapsed, 2))
+
+    def _act_with_recovery(self, step: Step, rendered: Step, *, sign_on: bool) -> None:
+        """3b: do the action; if it fails, see whether a KNOWN state explains why."""
+        while True:
+            try:
+                self._act(rendered)
+                return
+            except NavigationBlocked as exc:
+                raise self._failure(FailureCategory.POLICY_DENIED, str(exc), step=step) from None
+            except (TargetNotFound, PlaywrightTimeout) as exc:
+                if self._scan_known_states(step):
+                    # We recovered from something (a popup, an expired session): try again,
+                    # but only if repeating this step can't cause harm.
+                    self._require_repeatable(step, "an interruption during the action")
+                    self.log.event("retrying", "repeating the action after recovery",
+                                   step_id=step.id)
+                    continue
+                if sign_on:
+                    category = FailureCategory.SIGN_ON_FAILED
+                elif isinstance(exc, TargetNotFound):
+                    category = FailureCategory.TARGET_NOT_FOUND
+                else:
+                    category = FailureCategory.TIMEOUT
+                expected = (f"exactly one '{step.target.description}'"
+                            if isinstance(exc, TargetNotFound) and step.target else None)
+                raise self._failure(category, _first_line(exc), step=step, expected=expected,
+                                    observed=self._describe_screen()) from None
+            except PlaywrightError as exc:
+                raise self._failure(FailureCategory.APP_ERROR, _first_line(exc), step=step) from None
 
     def _act(self, step: Step) -> None:
         resolution: Resolution | None = None
@@ -276,20 +303,42 @@ class _Execution:
 
     # --- Checkpoints --------------------------------------------------------------
 
-    def _verify(self, step: Step, expect: Expectation, *, sign_on: bool = False) -> None:
+    def _verify(self, step: Step, rendered: Step, *, sign_on: bool = False) -> None:
         """Wait until the step's expectation holds. Never assume an action worked."""
-        deadline = time.monotonic() + self.profile.timing.navigation_timeout_ms / 1000
+        expect = rendered.expect
+        timeout = self.profile.timing.navigation_timeout_ms / 1000
+        deadline = time.monotonic() + timeout
         while True:
             if self._expectation_met(expect):
                 self.log.event("checkpoint_passed", self._describe(expect), step_id=step.id)
                 return
-            if self._scan_known_states(step):  # filled in during part 3b
+
+            if self._scan_known_states(step):  # 3b: recovered from a known interruption
+                # RE-VERIFY BEFORE RETRYING: the recovery may already have completed the step
+                # (e.g. signing on again lands on the page we were heading to).
+                if self._expectation_met(expect):
+                    self.log.event("checkpoint_passed",
+                                   f"met after recovery, action not repeated: {self._describe(expect)}",
+                                   step_id=step.id)
+                    return
+                self._require_repeatable(step, "a recovery left the step incomplete")
+                self.log.event("retrying", "repeating the action after recovery", step_id=step.id)
+                self._act_with_recovery(step, rendered, sign_on=sign_on)
+                deadline = time.monotonic() + timeout
                 continue
+
             if time.monotonic() >= deadline:
-                category = (FailureCategory.SIGN_ON_FAILED if sign_on
-                            else FailureCategory.CHECKPOINT_FAILED)
-                raise self._failure(category, "the screen did not reach the expected state",
-                                    step=step, expected=self._describe(expect),
+                if sign_on:
+                    category = FailureCategory.SIGN_ON_FAILED
+                elif self.surface.navigation_pending():  # 3b: still loading = timeout
+                    category = FailureCategory.TIMEOUT
+                else:
+                    category = FailureCategory.CHECKPOINT_FAILED
+                message = (f"the application did not finish loading within {timeout:.0f}s"
+                           if category == FailureCategory.TIMEOUT
+                           else "the screen did not reach the expected state")
+                raise self._failure(category, message, step=step,
+                                    expected=self._describe(expect),
                                     observed=self._describe_screen())
             time.sleep(POLL_SECONDS)
 
@@ -317,21 +366,84 @@ class _Execution:
                                          f"missing controls {[a.name for a in not_visible]}")
         self.log.event("success_condition_met", "all declared outputs present")
 
-    # --- Extension points, filled in during part 3b ------------------------------
+    # --- 3b: known states and recovery ---------------------------------------------
 
     def _handle_interruptions(self, step: Step) -> None:
-        """Before acting: detect and recover from known popups or expired sessions."""
-        return None
+        """Before acting: clear any known popup or expired session first."""
+        while self._check_interstitials(step):
+            pass  # keep going until the screen is clear; recovery limits stop endless loops
 
     def _scan_known_states(self, step: Step) -> bool:
-        """While a checkpoint isn't met: does a KNOWN state explain the screen?
+        """Does a KNOWN state explain the current screen? Most specific explanation first.
 
-        Raises _Stop for a business outcome or hard failure; returns True if it recovered
-        from something (so the checkpoint should be re-checked); False if nothing matched.
+        Raises _Stop for a business outcome or hard failure; returns True after recovering
+        from an interstitial (the caller should re-check); False if nothing known matches.
         """
+        for outcome_id in step.outcomes:  # only outcomes THIS step declares
+            outcome = self.capability.outcomes[outcome_id]
+            if self._detected(outcome.detect):
+                raise self._business_outcome(outcome_id, outcome, step)
+        return self._check_interstitials(step)
+
+    def _check_interstitials(self, step: Step) -> bool:
+        for name, interstitial in self.profile.interstitials.items():
+            if not self._detected(interstitial.detect):
+                continue
+            if interstitial.kind == "hard_failure":
+                raise self._failure(FailureCategory.APP_ERROR,
+                                    f"{name}: {interstitial.description}", step=step,
+                                    expected="the application to respond normally",
+                                    observed=f"'{name}' on {self.surface.current_route()}")
+            if self._signing_on and isinstance(interstitial.recovery, ReauthenticateRecovery):
+                continue  # we are already signing on: that IS the recovery
+            self._recover(name, interstitial, step)
+            return True
         return False
 
+    def _detected(self, detector: Detector) -> bool:
+        if detector.url is not None and self.surface.current_route() != detector.url:
+            return False
+        if detector.text is not None and not self.surface.text_visible(detector.text):
+            return False
+        return True
+
+    def _recover(self, name: str, interstitial: Interstitial, step: Step) -> None:
+        count = self._recovery_counts.get(step.id, 0) + 1
+        self._recovery_counts[step.id] = count
+        if count > self.profile.timing.max_recoveries_per_step:
+            raise self._failure(FailureCategory.RECOVERY_EXHAUSTED,
+                                f"'{name}' kept recurring at step '{step.id}' "
+                                f"after {count - 1} recoveries", step=step)
+
+        self.log.event("recovering", f"'{name}' detected; recovering with "
+                       f"{interstitial.recovery.type}", step_id=step.id)
+        match interstitial.recovery:
+            case DismissRecovery(target=target):
+                try:
+                    self.surface.click(target)
+                except (SurfaceError, PlaywrightError) as exc:
+                    raise self._failure(FailureCategory.RECOVERY_EXHAUSTED,
+                                        f"could not dismiss '{name}': {_first_line(exc)}",
+                                        step=step) from None
+            case ReauthenticateRecovery():
+                self._sign_on()
+
+        note = f"recovered from '{name}' at step '{step.id}' ({interstitial.recovery.type})"
+        self.recoveries.append(note)
+        self.log.event("recovered", note, step_id=step.id)
+
+    def _require_repeatable(self, step: Step, why: str) -> None:
+        """Never automatically repeat an irreversible step: we can't know if it already happened."""
+        if self.policy.effective_risk(step) == Risk.IRREVERSIBLE:
+            raise self._escalation(step, f"{why} on an irreversible step; a person must check "
+                                         "whether it took effect before anything is retried")
+
     # --- Ending a run, with evidence ----------------------------------------------
+
+    def _business_outcome(self, outcome_id: str, outcome: BusinessOutcome, step: Step) -> _Stop:
+        self.log.event("business_outcome", outcome.description, step_id=step.id, code=outcome.code)
+        return _Stop(ReplayStatus.BUSINESS_OUTCOME, outcome=OutcomeInfo(
+            id=outcome_id, code=outcome.code, description=outcome.description, step_id=step.id))
 
     def _failure(self, category: FailureCategory, message: str, *, step: Step | None = None,
                  expected: str | None = None, observed: str | None = None) -> _Stop:

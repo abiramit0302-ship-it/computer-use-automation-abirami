@@ -38,3 +38,14 @@ def test_evidence_contains_no_sensitive_values(tmp_path):
     written = (run_dir / "events.jsonl").read_text() + (run_dir / "summary.json").read_text()
     for raw in ["2450.75", "2,450.75", "12345", "harbor-demo-2026"]:
         assert raw not in written, f"{raw!r} leaked into the evidence"
+
+@pytest.mark.parametrize("member_id, code", [
+    ("99999", "MEMBER_NOT_FOUND"),
+    ("10001", "MEMBER_RESTRICTED"),
+])
+def test_business_outcomes_are_answers_not_crashes(tmp_path, member_id, code):
+    result = make(tmp_path).run(CAPABILITY, {"member_id": member_id})
+    assert result.status == ReplayStatus.BUSINESS_OUTCOME, result.failure
+    assert result.outcome.code == code
+    assert result.outcome.step_id == "submit_search"
+    assert result.outputs == {}
