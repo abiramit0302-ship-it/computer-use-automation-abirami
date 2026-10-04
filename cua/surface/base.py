@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 from pathlib import Path
 from collections.abc import Callable, Sequence
+import time
 
 from cua.schema import Anchor, Target
 
@@ -114,3 +115,13 @@ class Surface(ABC):
 
     def stop_operator_capture(self) -> None:
         """Stop reporting operator actions, delivering any still queued."""
+
+    def idle(self, seconds: float) -> None:
+        """Let time pass while keeping the session responsive (e.g. while a person works)."""
+        time.sleep(seconds)
+
+    def show_paused_banner(self, text: str) -> None:
+        """While nobody holds control: shield the screen from input and say why."""
+
+    def hide_paused_banner(self) -> None:
+        """Remove the shield before anyone acts."""

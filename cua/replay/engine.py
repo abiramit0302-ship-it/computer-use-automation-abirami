@@ -18,6 +18,7 @@ from pathlib import Path
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from cua.handoff.control import ControlLease, ControlState
 from cua.evidence import RUNS_DIR, RunLog
 from cua.handoff.control import ControlLease
 from cua.handoff.operator import HandBack, HandoffRequest, Operator, Review
@@ -109,6 +110,7 @@ class _Execution:
         self.started = time.monotonic()
         self._recovery_counts: dict[str, int] = {}
         self._signing_on = False
+        self._blocked_without_control = 0  # 11c: page loads attempted while nobody held control
 
     # --- The run as a whole ------------------------------------------------------
 
@@ -124,7 +126,7 @@ class _Execution:
                 self._preflight()
                 with open_web_surface(self.config.base_url, self.profile.timing,
                                       headless=self.config.headless,
-                                      request_guard=self.policy.allows_request) as surface:
+                                      request_guard=self._request_guard) as surface:
                     self.surface = surface
                     self._sign_on()
                     for step in self.capability.steps:
@@ -323,6 +325,18 @@ class _Execution:
 
     # --- 11c: handing a step to a person ----------------------------------------------
 
+    def _request_guard(self, url: str, is_navigation: bool) -> bool:
+        """The policy's checks, PLUS the control lease enforced inside the browser: while
+        nobody holds control (awaiting an operator, or ended), no page may load at all."""
+        if not self.policy.allows_request(url, is_navigation):
+            return False
+        if is_navigation and self.lease.state in (ControlState.AWAITING_OPERATOR, ControlState.ENDED):
+            self._blocked_without_control += 1
+            self.log.event("blocked_without_control",
+                           "a page load was attempted while nobody held control; blocked", url=url)
+            return False
+        return True
+
     def _hand_over(self, step: Step, rendered: Step, reason: str) -> bool:
         """Pause, bring in the operator, and resume. Returns True if the PERSON completed
         the step (so automation must not repeat it), False if automation should perform it."""
@@ -334,14 +348,30 @@ class _Execution:
             screenshot=self._capture_evidence(f"handoff-{step.id}"))
         self.log.event("handoff_requested", reason, step_id=step.id)
         self.lease.request_operator(reason)
-
-        review = operator.review(request)
+        blocked_before = self._blocked_without_control
+        self.surface.show_paused_banner(
+            "Automation paused: choose approve / take control / reject in the terminal "
+            "before touching this page")
+        try:
+            review = operator.review(request, self.surface)
+            # Decide any page loads attempted during review NOW, while control is still
+            # unassigned, so the guard blocks them before the lease changes hands.
+            self.surface.idle(0.2)
+        finally:
+            self.surface.hide_paused_banner()
         self.log.event("operator_review", f"{who} chose '{review.value}'", step_id=step.id)
+        acted_too_early = self._blocked_without_control > blocked_before
 
         if review == Review.REJECT:
             self.lease.end(by=who, reason="declined at review")
             raise self._failure(FailureCategory.OPERATOR_DECLINED,
                                 f"{who} declined step '{step.id}'; nothing was committed", step=step)
+
+        if acted_too_early:
+            self.lease.end(by=who, reason="browser activity before control was taken")
+            raise self._escalation(step, "an action was attempted in the browser before anyone "
+                                         "took control; it was blocked, so nothing was committed, "
+                                         "but the page may have changed: a person must re-check")
 
         if review == Review.APPROVE:
             self.lease.return_to_automation(by=who, reason="approved")
@@ -371,7 +401,12 @@ class _Execution:
         self.lease.return_to_automation(by=who, reason="handed back")
 
         # RE-VERIFY BEFORE RETRYING: never assume what the person did or didn't do.
-        if rendered.expect is not None and self._wait_for(rendered.expect, timeout=HANDBACK_CHECK_SECONDS):
+        try:
+            completed = rendered.expect is not None and self._wait_for(
+                rendered.expect, timeout=HANDBACK_CHECK_SECONDS)
+        except PlaywrightError:
+            completed = False  # can't confirm: the rules below treat that safely
+        if completed:
             self.handoffs.append(f"step '{step.id}' completed by {who} "
                                  f"({len(captured)} actions captured); not repeated by automation")
             self.log.event("checkpoint_passed",

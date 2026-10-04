@@ -88,3 +88,31 @@ def test_abort_while_in_control_commits_nothing(tmp_path):
     assert result.status == ReplayStatus.FAILED
     assert result.failure.category == FailureCategory.OPERATOR_DECLINED
     assert accounts == 1
+
+def press_confirm_bypassing_the_shield(surface):
+    """A person acting during review, even working around the on-screen shield."""
+    surface.page.get_by_role("button", name="Confirm").dispatch_event("click")
+
+
+def test_clicking_before_taking_control_cannot_commit_anything(tmp_path):
+    """Regression: a click during review went through once control changed (found by hand)."""
+    operator = ScriptedOperator(Review.REJECT, operator_id="abi",
+                                review_actions=press_confirm_bypassing_the_shield)
+    with bank_app() as url:
+        result = replay(url, tmp_path, operator)
+        accounts = share_savings_accounts(url)
+    assert result.failure.category == FailureCategory.OPERATOR_DECLINED
+    assert "nothing was committed" in result.failure.message
+    assert accounts == 1  # the early click really was blocked
+    assert "blocked_without_control" in events(tmp_path, result)
+
+
+def test_approving_after_an_early_click_stops_for_a_human_instead_of_guessing(tmp_path):
+    operator = ScriptedOperator(Review.APPROVE, operator_id="abi",
+                                review_actions=press_confirm_bypassing_the_shield)
+    with bank_app() as url:
+        result = replay(url, tmp_path, operator)
+        accounts = share_savings_accounts(url)
+    assert result.status == ReplayStatus.NEEDS_HUMAN
+    assert "before anyone took control" in result.escalation.reason
+    assert accounts == 1

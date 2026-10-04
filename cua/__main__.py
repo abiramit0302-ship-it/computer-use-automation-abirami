@@ -72,8 +72,16 @@ def cmd_replay(options: argparse.Namespace) -> int:
     capability_path = Path(options.capability)
     capability = load_capability(capability_path)
     profile = load_app_profile(capability_path.parent / "app_profile.json")
+
+    operator = None
+    headless = not options.headed
+    if options.operator == "console":
+        from cua.handoff.console import ConsoleOperator
+        operator = ConsoleOperator(options.operator_id)
+        headless = False  # the person needs to SEE the session to take it over
+
     replayer = Replayer(profile, Policy.load(options.policy), options.base_url,
-                        allow_draft=options.allow_draft, headless=not options.headed)
+                        allow_draft=options.allow_draft, headless=headless, operator=operator)
 
     result = replayer.run(capability, parse_pairs(options.arg))
 
@@ -148,6 +156,11 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--allow-draft", action="store_true",
                         help="allow running a draft capability (development only)")
     replay.add_argument("--headed", action="store_true", help="show the browser window")
+    replay.add_argument("--operator", choices=["none", "console"], default="none",
+                        help="console = a person at this terminal approves or takes control "
+                             "at steps needing approval (opens a visible browser)")
+    replay.add_argument("--operator-id", default=os.environ.get("USER", "operator"),
+                        help="name recorded in the audit trail for the operator")
     replay.set_defaults(handler=cmd_replay)
     return parser
 

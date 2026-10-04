@@ -65,6 +65,6 @@ def test_every_change_is_reported_with_who_and_why():
 def test_scripted_operator_decides_and_acts():
     acted = []
     operator = ScriptedOperator(Review.TAKE_CONTROL, actions=lambda surface: acted.append(surface))
-    assert operator.review(REQUEST) == Review.TAKE_CONTROL
+    assert operator.review(REQUEST, surface=None) == Review.TAKE_CONTROL
     assert operator.operate(REQUEST, surface="fake-surface") == HandBack.RESUME
     assert acted == ["fake-surface"] and operator.requests == [REQUEST]

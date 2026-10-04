@@ -64,6 +64,36 @@ OPERATOR_CAPTURE_JS = """
 })();
 """
 
+# While waiting for an operator's decision: a shield over the page that catches clicks and
+# key presses, with a banner saying why. aria-hidden keeps it out of the accessibility tree.
+PAUSE_SHIELD_JS = """
+(text) => {
+  if (document.getElementById('__cua_pause')) return;
+  if (document.activeElement) document.activeElement.blur();
+  const shield = document.createElement('div');
+  shield.id = '__cua_pause';
+  shield.setAttribute('aria-hidden', 'true');
+  shield.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.25);' +
+                         'display:flex;align-items:flex-start;justify-content:center;';
+  const note = document.createElement('div');
+  note.textContent = text;
+  note.style.cssText = 'margin-top:12px;padding:10px 16px;background:#b00000;color:#fff;' +
+                       'font:bold 14px Verdana,sans-serif;border-radius:4px;';
+  shield.appendChild(note);
+  window.__cuaBlockKeys = (e) => { e.preventDefault(); e.stopPropagation(); };
+  window.addEventListener('keydown', window.__cuaBlockKeys, true);
+  document.body.appendChild(shield);
+}
+"""
+
+REMOVE_PAUSE_SHIELD_JS = """
+() => {
+  const shield = document.getElementById('__cua_pause');
+  if (shield) shield.remove();
+  if (window.__cuaBlockKeys) window.removeEventListener('keydown', window.__cuaBlockKeys, true);
+}
+"""
+
 
 class WebSurface(Surface):
     def __init__(self, page: Page, base_url: str, timing: Timing):
@@ -185,8 +215,30 @@ class WebSurface(Surface):
         self._operator_sink = on_event
 
     def stop_operator_capture(self) -> None:
-        self.page.evaluate("0")  # any browser call delivers events still queued
-        self._operator_sink = None
+        try:
+            self.page.wait_for_load_state("load")  # let a page change the operator started finish
+            self.page.evaluate("0")                # then deliver any events still queued
+        except PlaywrightError:
+            pass  # the page is still changing; the next browser call delivers queued events
+        finally:
+            self._operator_sink = None
+
+    def idle(self, seconds: float) -> None:
+        # Unlike time.sleep, this lets Playwright process waiting work: request-guard
+        # decisions, captured operator events, and page loads.
+        self.page.wait_for_timeout(seconds * 1000)
+
+    def show_paused_banner(self, text: str) -> None:
+        try:
+            self.page.evaluate(PAUSE_SHIELD_JS, text)
+        except PlaywrightError:
+            pass  # the shield is a courtesy; the request guard is the enforcement
+
+    def hide_paused_banner(self) -> None:
+        try:
+            self.page.evaluate(REMOVE_PAUSE_SHIELD_JS)
+        except PlaywrightError:
+            pass
 
     def _on_operator_event(self, _source, event: dict) -> None:
         if self._operator_sink is None:
@@ -246,18 +298,20 @@ class WebSurface(Surface):
                 return self._table_cell(row_where, column)
             case LabelledValueLocator(label=label):
                 labels = page.get_by_role("cell", name=label, exact=True)
-                if labels.count() != 1:
+                if labels.count() == 0:
                     return None
-                return labels.locator("xpath=following-sibling::*[1]")
+                return labels.locator("xpath=following-sibling::*[1]")  # several labels -> several matches, refused
         raise TypeError(f"unsupported locator: {spec!r}")
 
     def _table_cell(self, row_where: str, column: str) -> Locator | None:
         """The cell in the row containing `row_where`, under the column headed `column`."""
         header = self.page.get_by_role("cell", name=column, exact=True)
         row_label = self.page.get_by_role("cell", name=row_where, exact=True)
-        if header.count() != 1 or row_label.count() != 1:
+        if header.count() != 1 or row_label.count() == 0:
             return None
         column_index = header.evaluate("cell => cell.cellIndex")  # position within its row
+        # If several rows match, this locator matches several cells: _resolve then refuses
+        # it AND reports the true count, so "ambiguous" is never mistaken for "missing".
         return row_label.locator(f"xpath=../*[{column_index + 1}]")
 
 
