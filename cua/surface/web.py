@@ -1,20 +1,24 @@
 """Surface implementation for web applications, driven by Playwright."""
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Locator, Page, sync_playwright
 
 from cua.schema import (
     Anchor, NthOfRoleLocator, RoleInScopeLocator, RoleNameLocator,
     TableCellLocator, Target, Timing,
 )
-from cua.surface.base import Observation, Resolution, Surface, TargetNotFound
+from cua.surface.base import (
+    NavigationBlocked, Observation, Resolution, Surface, TargetNotFound,
+)
 
 POLL_INTERVAL_MS = 100
+RequestGuard = Callable[[str, bool], bool]  # (url, is_navigation) -> allowed?
 
 
 class WebSurface(Surface):
@@ -22,13 +26,20 @@ class WebSurface(Surface):
         self.page = page
         self.base_url = base_url.rstrip("/")
         self.timing = timing
+        self.blocked: list[str] = []  # URLs the request guard refused, in order
         page.set_default_timeout(timing.action_timeout_ms)
         page.set_default_navigation_timeout(timing.navigation_timeout_ms)
 
     # --- Looking -------------------------------------------------------------------
 
     def goto(self, route: str) -> None:
-        self.page.goto(self.base_url + route, wait_until="load")
+        before = len(self.blocked)
+        try:
+            self.page.goto(self.base_url + route, wait_until="load")
+        except PlaywrightError:
+            self._raise_if_blocked(before)
+            raise
+        self._raise_if_blocked(before)
 
     def current_route(self) -> str:
         return urlparse(self.page.url).path
@@ -61,8 +72,14 @@ class WebSurface(Surface):
 
     def click(self, target: Target) -> Resolution:
         locator, resolution = self._resolve(target)
-        locator.click()
-        self.page.wait_for_load_state("load")
+        before = len(self.blocked)
+        try:
+            locator.click()
+            self.page.wait_for_load_state("load")
+        except PlaywrightError:
+            self._raise_if_blocked(before)
+            raise
+        self._raise_if_blocked(before)
         return resolution
 
     def read_text(self, target: Target) -> tuple[str, Resolution]:
@@ -72,6 +89,11 @@ class WebSurface(Surface):
     def screenshot(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.page.screenshot(path=str(path), full_page=True)
+
+    def _raise_if_blocked(self, count_before: int) -> None:
+        """If the guard refused a request during the last action, turn that into a clear error."""
+        if len(self.blocked) > count_before:
+            raise NavigationBlocked(self.blocked[-1])
 
     # --- Finding controls ----------------------------------------------------------
 
@@ -128,8 +150,13 @@ class WebSurface(Surface):
 
 @contextmanager
 def open_web_surface(base_url: str, timing: Timing, *, headless: bool = True,
-                     video_dir: Path | None = None) -> Iterator[WebSurface]:
-    """Start a browser, yield a surface on a fresh page, and always clean up afterwards."""
+                     video_dir: Path | None = None,
+                     request_guard: RequestGuard | None = None) -> Iterator[WebSurface]:
+    """Start a browser, yield a surface on a fresh page, and always clean up afterwards.
+
+    If request_guard is given, EVERY request the browser makes is checked against it,
+    including ones caused by clicks and redirects we didn't predict.
+    """
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -137,8 +164,19 @@ def open_web_surface(base_url: str, timing: Timing, *, headless: bool = True,
             record_video_dir=str(video_dir) if video_dir else None,
         )
         page = context.new_page()
+        surface = WebSurface(page, base_url, timing)
+
+        if request_guard is not None:
+            def guard(route, request):
+                if request_guard(request.url, request.is_navigation_request()):
+                    route.continue_()
+                else:
+                    surface.blocked.append(request.url)
+                    route.abort("blockedbyclient")
+            context.route("**/*", guard)
+
         try:
-            yield WebSurface(page, base_url, timing)
+            yield surface
         finally:
             context.close()
             browser.close()

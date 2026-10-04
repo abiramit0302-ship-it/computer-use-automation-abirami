@@ -1,0 +1,41 @@
+# Safety policy for the automation system.
+# DEFAULT-DENY: anything not listed here is refused.
+# Loaded once at startup; an invalid file stops the program rather than being half-applied.
+version: 1
+
+# Which applications the automation may talk to at all.
+allowed_origins:
+  - http://localhost:5050
+  - http://127.0.0.1:5050
+
+# Which screens it may be on. '*' matches exactly one path segment.
+allowed_routes:
+  - /login
+  - /search
+  - /notice/acknowledge
+  - /member/*
+  - /member/*/open-account
+  - /member/*/open-account/review
+  - /member/*/open-account/done
+
+# Which kinds of action it may take.
+allowed_actions: [navigate, fill, select, click, extract]
+
+# What happens at each risk level.
+risk_rules:
+  read_only: allow
+  reversible: allow
+  irreversible: require_approval
+
+# Clicking a control whose visible name contains one of these words is treated as
+# irreversible, whatever the artifact says.
+irreversible_keywords:
+  - confirm
+  - submit
+  - approve
+  - authorize
+  - transfer
+  - pay
+  - send
+  - delete
+  - close account

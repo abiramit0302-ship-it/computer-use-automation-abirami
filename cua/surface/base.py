@@ -46,6 +46,13 @@ class TargetNotFound(SurfaceError):
         tried = ", ".join(f"{strategy}: {count} match(es)" for strategy, count in attempts)
         super().__init__(f"could not find exactly one '{description}' ({tried})")
 
+class NavigationBlocked(SurfaceError):
+    """The browser refused to load a page because the policy doesn't allow it."""
+
+    def __init__(self, url: str):
+        self.url = url
+        super().__init__(f"navigation to {url} was blocked by policy")
+
 
 class Surface(ABC):
     """Everything the rest of the system is allowed to do to an application."""
