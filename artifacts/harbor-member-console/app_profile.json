@@ -4,6 +4,7 @@
   "product_version": "4.x",
   "description": "Harbor Point Member Services Console: legacy server-rendered web app with table layouts and no test IDs.",
   "secrets": ["operator_user", "operator_password"],
+  "sensitive_labels": ["Name:", "Date of Birth:", "SSN (last 4):"],
   "sign_on": {
     "route": "/login",
     "steps": [

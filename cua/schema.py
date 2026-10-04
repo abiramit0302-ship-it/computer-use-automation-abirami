@@ -358,6 +358,7 @@ class AppProfile(StrictModel):
     product_version: str
     description: str
     secrets: list[str] = Field(default_factory=list)  # names the runtime must supply, never values
+    sensitive_labels: list[str] = Field(default_factory=list)  # screen labels whose value is personal data
     sign_on: SignOn
     interstitials: dict[str, Interstitial] = Field(default_factory=dict)
     timing: Timing = Field(default_factory=Timing)

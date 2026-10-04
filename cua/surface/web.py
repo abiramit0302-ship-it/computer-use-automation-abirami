@@ -1,7 +1,8 @@
 """Surface implementation for web applications, driven by Playwright."""
 
+import re
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
@@ -18,6 +19,7 @@ from cua.surface.base import (
 )
 
 POLL_INTERVAL_MS = 100
+MONEY_CELL = re.compile(r"^\$[\d,]+\.\d{2}$")
 RequestGuard = Callable[[str, bool], bool]  # (url, is_navigation) -> allowed?
 
 
@@ -86,10 +88,16 @@ class WebSurface(Surface):
         locator, resolution = self._resolve(target)
         return locator.inner_text().strip(), resolution
 
-    def screenshot(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self.page.screenshot(path=str(path), full_page=True)
-
+    def screenshot(self, path: Path, sensitive_labels: Sequence[str] = ()) -> None:
+           path.parent.mkdir(parents=True, exist_ok=True)
+           masks = [
+               # the value cell immediately to the right of each sensitive label
+               self.page.get_by_role("cell", name=label, exact=True).locator("xpath=following-sibling::*[1]")
+               for label in sensitive_labels
+           ]
+           masks.append(self.page.get_by_role("cell", name=MONEY_CELL))  # every money amount
+           self.page.screenshot(path=str(path), full_page=True, mask=masks)
+           
     def _raise_if_blocked(self, count_before: int) -> None:
         """If the guard refused a request during the last action, turn that into a clear error."""
         if len(self.blocked) > count_before:

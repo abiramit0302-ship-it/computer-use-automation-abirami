@@ -8,6 +8,7 @@ Windows, the AX API on macOS), and nothing above this layer would change.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from collections.abc import Sequence
 from pathlib import Path
 
 from cua.schema import Anchor, Target
@@ -94,5 +95,5 @@ class Surface(ABC):
         """Read the visible text of a control."""
 
     @abstractmethod
-    def screenshot(self, path: Path) -> None:
-        """Save an image of the current screen, for evidence."""
+    def screenshot(self, path: Path, sensitive_labels: Sequence[str] = ()) -> None:
+        """Save an image of the current screen for evidence, masking sensitive values."""

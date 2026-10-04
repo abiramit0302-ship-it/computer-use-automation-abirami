@@ -608,6 +608,13 @@
       "title": "Secrets",
       "type": "array"
     },
+    "sensitive_labels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sensitive Labels",
+      "type": "array"
+    },
     "sign_on": {
       "$ref": "#/$defs/SignOn"
     },
