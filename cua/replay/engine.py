@@ -3,6 +3,10 @@
 This is the production path. An AI agent calls run() with a capability and its
 inputs, and gets back a ReplayResult: success, business_outcome, failed or
 needs_human. Every run leaves a redacted evidence trail in runs/<run_id>/.
+
+If an Operator is attached, steps that need approval are handed to a person LIVE, in
+the same browser session, under a control lease that stops automation from acting
+while the person holds control. Without one, such steps return needs_human.
 """
 
 import re
@@ -15,6 +19,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from cua.evidence import RUNS_DIR, RunLog
+from cua.handoff.control import ControlLease
+from cua.handoff.operator import HandBack, HandoffRequest, Operator, Review
 from cua.policy import Policy, Verdict
 from cua.redaction import Redactor
 from cua.replay.result import (
@@ -33,6 +39,7 @@ from cua.templating import render_model
 
 SLOW_STEP_SECONDS = 2.0  # steps slower than this are flagged in warnings
 POLL_SECONDS = 0.1
+HANDBACK_CHECK_SECONDS = 2.0  # 11c: how long to look for the operator's result after handback
 
 
 def parse_money(text: str) -> str | None:
@@ -64,7 +71,8 @@ class Replayer:
 
     def __init__(self, profile: AppProfile, policy: Policy, base_url: str, *,
                  secrets: SecretStore | None = None, allow_draft: bool = False,
-                 headless: bool = True, runs_dir: Path = RUNS_DIR):
+                 headless: bool = True, runs_dir: Path = RUNS_DIR,
+                 operator: Operator | None = None):
         self.profile = profile
         self.policy = policy
         self.base_url = base_url
@@ -72,6 +80,7 @@ class Replayer:
         self.allow_draft = allow_draft
         self.headless = headless
         self.runs_dir = Path(runs_dir)
+        self.operator = operator  # 11c: None = unattended (approvals return needs_human)
 
     def run(self, capability: Capability, args: Mapping[str, str]) -> ReplayResult:
         return _Execution(self, capability, dict(args)).run()
@@ -90,14 +99,16 @@ class _Execution:
         self.redactor = Redactor(self.profile.sensitive_labels)
         self.surface: Surface | None = None
         self.log: RunLog | None = None
+        self.lease: ControlLease | None = None  # 11c: created once the log exists
         self.inputs: dict[str, str] = {}
         self.secret_values: dict[str, str] = {}
         self.outputs: dict[str, str] = {}
         self.warnings: list[str] = []
         self.recoveries: list[str] = []
+        self.handoffs: list[str] = []  # 11c
         self.started = time.monotonic()
-        self._recovery_counts: dict[str, int] = {}  # 3b: recoveries attempted, per step
-        self._signing_on = False                    # 3b: guards against re-auth inside re-auth
+        self._recovery_counts: dict[str, int] = {}
+        self._signing_on = False
 
     # --- The run as a whole ------------------------------------------------------
 
@@ -105,6 +116,9 @@ class _Execution:
         self._register_args()  # BEFORE the log exists, so nothing is ever written unredacted
         with RunLog("replay", self.redactor, root=self.config.runs_dir) as log:
             self.log = log
+            self.lease = ControlLease(on_change=lambda change: log.event(  # 11c: audit trail
+                "control_changed", f"{change.from_state.value} -> {change.to_state.value}",
+                by=change.by, reason=change.reason))
             log.event("run_started", f"replaying {self.label}", inputs=self.args)
             try:
                 self._preflight()
@@ -133,6 +147,7 @@ class _Execution:
             outputs=dict(self.outputs) if status == ReplayStatus.SUCCESS else {},
             warnings=self.warnings,
             recoveries=self.recoveries,
+            handoffs=self.handoffs,
             duration_ms=int((time.monotonic() - self.started) * 1000),
             **details,
         )
@@ -197,7 +212,7 @@ class _Execution:
     def _sign_on(self) -> None:
         """Sign on. Also used as the recovery for an expired session."""
         sign_on = self.profile.sign_on
-        self._signing_on = True  # 3b
+        self._signing_on = True
         try:
             self.log.event("sign_on", "signing on")
             # If we're already on the sign-on page (e.g. after a session timeout), stay: the
@@ -228,10 +243,14 @@ class _Execution:
         if decision.verdict == Verdict.DENY:
             raise self._failure(FailureCategory.POLICY_DENIED, decision.reason, step=step)
         if decision.verdict == Verdict.REQUIRE_APPROVAL:
-            raise self._escalation(step, decision.reason)
+            if self.config.operator is None:
+                raise self._escalation(step, decision.reason)  # unattended: queue for a person
+            if self._hand_over(step, rendered, decision.reason):  # 11c: live handoff
+                self.log.event("step_done", "completed by the operator", step_id=step.id)
+                return
 
         started = time.monotonic()
-        self._act_with_recovery(step, rendered, sign_on=sign_on)  # 3b
+        self._act_with_recovery(step, rendered, sign_on=sign_on)
         if rendered.expect is not None:
             self._verify(step, rendered, sign_on=sign_on)
 
@@ -241,7 +260,7 @@ class _Execution:
         self.log.event("step_done", "step complete", step_id=step.id, seconds=round(elapsed, 2))
 
     def _act_with_recovery(self, step: Step, rendered: Step, *, sign_on: bool) -> None:
-        """3b: do the action; if it fails, see whether a KNOWN state explains why."""
+        """Do the action; if it fails, see whether a KNOWN state explains why."""
         while True:
             try:
                 self._act(rendered)
@@ -270,6 +289,7 @@ class _Execution:
                 raise self._failure(FailureCategory.APP_ERROR, _first_line(exc), step=step) from None
 
     def _act(self, step: Step) -> None:
+        self.lease.require_automation()  # 11c: never act while a person holds the session
         resolution: Resolution | None = None
         match step.action:
             case NavigateAction(route=route):
@@ -301,6 +321,67 @@ class _Execution:
         self.outputs[into] = value
         self.log.event("extracted", f"read output '{into}'", step_id=step.id, value=value)
 
+    # --- 11c: handing a step to a person ----------------------------------------------
+
+    def _hand_over(self, step: Step, rendered: Step, reason: str) -> bool:
+        """Pause, bring in the operator, and resume. Returns True if the PERSON completed
+        the step (so automation must not repeat it), False if automation should perform it."""
+        operator = self.config.operator
+        who = f"operator:{operator.id}"
+        request = HandoffRequest(
+            run_id=self.log.run_id, capability=self.label, step_id=step.id, intent=step.intent,
+            reason=reason, route=self.surface.current_route(),
+            screenshot=self._capture_evidence(f"handoff-{step.id}"))
+        self.log.event("handoff_requested", reason, step_id=step.id)
+        self.lease.request_operator(reason)
+
+        review = operator.review(request)
+        self.log.event("operator_review", f"{who} chose '{review.value}'", step_id=step.id)
+
+        if review == Review.REJECT:
+            self.lease.end(by=who, reason="declined at review")
+            raise self._failure(FailureCategory.OPERATOR_DECLINED,
+                                f"{who} declined step '{step.id}'; nothing was committed", step=step)
+
+        if review == Review.APPROVE:
+            self.lease.return_to_automation(by=who, reason="approved")
+            self.handoffs.append(f"step '{step.id}' approved by {who}; performed by automation")
+            return False
+
+        # TAKE_CONTROL: the person works in the SAME live session while we record what they do.
+        self.lease.grant_to(operator.id)
+        captured: list[dict] = []
+
+        def record(event: dict) -> None:
+            captured.append(event)
+            summary = " ".join(str(event.get(key, "")) for key in ("type", "role", "name")).strip()
+            self.log.event("operator_action", summary or "operator action", step_id=step.id, **event)
+
+        self.surface.start_operator_capture(record)
+        try:
+            hand_back = operator.operate(request, self.surface)
+        finally:
+            self.surface.stop_operator_capture()
+
+        if hand_back == HandBack.ABORT:
+            self.lease.end(by=who, reason="aborted while in control")
+            raise self._failure(FailureCategory.OPERATOR_DECLINED,
+                                f"{who} aborted the run while in control at step '{step.id}'",
+                                step=step)
+        self.lease.return_to_automation(by=who, reason="handed back")
+
+        # RE-VERIFY BEFORE RETRYING: never assume what the person did or didn't do.
+        if rendered.expect is not None and self._wait_for(rendered.expect, timeout=HANDBACK_CHECK_SECONDS):
+            self.handoffs.append(f"step '{step.id}' completed by {who} "
+                                 f"({len(captured)} actions captured); not repeated by automation")
+            self.log.event("checkpoint_passed",
+                           f"met after handback, action not repeated: {self._describe(rendered.expect)}",
+                           step_id=step.id)
+            return True
+        self._require_repeatable(step, "the operator handed back without completing the step")
+        self.handoffs.append(f"step '{step.id}' handed back incomplete by {who}; performed by automation")
+        return False
+
     # --- Checkpoints --------------------------------------------------------------
 
     def _verify(self, step: Step, rendered: Step, *, sign_on: bool = False) -> None:
@@ -313,7 +394,7 @@ class _Execution:
                 self.log.event("checkpoint_passed", self._describe(expect), step_id=step.id)
                 return
 
-            if self._scan_known_states(step):  # 3b: recovered from a known interruption
+            if self._scan_known_states(step):
                 # RE-VERIFY BEFORE RETRYING: the recovery may already have completed the step
                 # (e.g. signing on again lands on the page we were heading to).
                 if self._expectation_met(expect):
@@ -330,7 +411,7 @@ class _Execution:
             if time.monotonic() >= deadline:
                 if sign_on:
                     category = FailureCategory.SIGN_ON_FAILED
-                elif self.surface.navigation_pending():  # 3b: still loading = timeout
+                elif self.surface.navigation_pending():
                     category = FailureCategory.TIMEOUT
                 else:
                     category = FailureCategory.CHECKPOINT_FAILED
@@ -342,8 +423,10 @@ class _Execution:
                                     observed=self._describe_screen())
             time.sleep(POLL_SECONDS)
 
-    def _wait_for(self, expect: Expectation) -> bool:
-        deadline = time.monotonic() + self.profile.timing.navigation_timeout_ms / 1000
+    def _wait_for(self, expect: Expectation, timeout: float | None = None) -> bool:
+        if timeout is None:
+            timeout = self.profile.timing.navigation_timeout_ms / 1000
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self._expectation_met(expect):
                 return True
@@ -366,7 +449,7 @@ class _Execution:
                                          f"missing controls {[a.name for a in not_visible]}")
         self.log.event("success_condition_met", "all declared outputs present")
 
-    # --- 3b: known states and recovery ---------------------------------------------
+    # --- Known states and recovery -----------------------------------------------------
 
     def _handle_interruptions(self, step: Step) -> None:
         """Before acting: clear any known popup or expired session first."""
@@ -419,6 +502,7 @@ class _Execution:
                        f"{interstitial.recovery.type}", step_id=step.id)
         match interstitial.recovery:
             case DismissRecovery(target=target):
+                self.lease.require_automation()  # 11c
                 try:
                     self.surface.click(target)
                 except (SurfaceError, PlaywrightError) as exc:

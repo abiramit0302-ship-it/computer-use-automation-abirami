@@ -33,6 +33,7 @@ class FailureCategory(StrEnum):
     APP_ERROR = "app_error"                          # the app showed a known hard failure (outage)
     TIMEOUT = "timeout"                              # a page didn't load within the time budget
     RECOVERY_EXHAUSTED = "recovery_exhausted"        # a known problem kept coming back
+    OPERATOR_DECLINED = "operator_declined"          # a person reviewed the step and said no
 
 
 # Failures where trying the whole capability again later could plausibly succeed.
@@ -84,6 +85,7 @@ class ReplayResult(StrictModel):
     escalation: EscalationInfo | None = None
     warnings: list[str] = Field(default_factory=list)    # fallback locators used, slow responses
     recoveries: list[str] = Field(default_factory=list)  # e.g. "dismissed system_notice before ..."
+    handoffs: list[str] = Field(default_factory=list)    # e.g. "step 'x' approved by operator:abi"
     duration_ms: int = Field(ge=0)
 
     @model_validator(mode="after")
