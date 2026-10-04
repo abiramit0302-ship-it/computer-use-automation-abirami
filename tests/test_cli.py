@@ -19,3 +19,19 @@ def test_malformed_arg_is_a_usage_error(capsys):
     code = main(["replay", ARTIFACT, "--allow-draft", "--arg", "member_id"])
     assert code == 2
     assert "NAME=VALUE" in capsys.readouterr().err
+
+def test_discover_mock_without_script_is_a_usage_error(capsys):
+    code = main(["discover", "--app", "artifacts/harbor-member-console",
+                 "--capability-id", "member.x", "--goal", "Look up member {{inputs.member_id}}",
+                 "--input", "member_id=12345", "--planner", "mock"])
+    assert code == 2
+    assert "--script" in capsys.readouterr().err
+
+
+def test_discover_rejects_secret_inputs(capsys):
+    code = main(["discover", "--app", "artifacts/harbor-member-console",
+                 "--capability-id", "member.x", "--goal", "x",
+                 "--input", "password:secret=hunter2", "--planner", "mock",
+                 "--script", "planner_scripts/lookup_balance.json"])
+    assert code == 2
+    assert "hunter2" not in capsys.readouterr().err

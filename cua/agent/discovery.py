@@ -16,6 +16,7 @@ import time
 from enum import StrEnum
 from pathlib import Path
 from cua.agent.recorder import Recorder, slugify
+from pydantic import Field
 
 from playwright.sync_api import Error as PlaywrightError
 
@@ -64,6 +65,7 @@ class DiscoveryResult(StrictModel):
     capability: Capability | None = None
     intervention: InterventionRequest | None = None
     failure: str | None = None
+    observed_outputs: dict[str, str] = Field(default_factory=dict)  # what discovery read, for verification
 
 
 class _Halt(Exception):
@@ -123,6 +125,7 @@ class _Session:
         self.log: RunLog | None = None
         self.recorder: Recorder | None = None
         self.secret_values: dict[str, str] = {}
+        self.observed_outputs: dict[str, str] = {}
 
     # --- The run as a whole ------------------------------------------------------
 
@@ -146,11 +149,11 @@ class _Session:
                         planner_name=self.config.planner.name, run_id=log.run_id)
                     self._loop()  # always ends by raising _Halt
             except _Halt as halt:
+                recorded = halt.status == DiscoveryStatus.RECORDED
                 result = DiscoveryResult(run_id=log.run_id, status=halt.status, turns=self.turn,
                                          capability=halt.capability,
-                                         intervention=halt.intervention, failure=halt.failure)
-            log.event("run_finished", f"status: {result.status.value}", turns=self.turn)
-            log.write_summary(result.model_dump(mode="json"))
+                                         intervention=halt.intervention, failure=halt.failure,
+                                         observed_outputs=dict(self.observed_outputs) if recorded else {})
         return result
 
     def _preflight(self) -> None:
@@ -355,6 +358,7 @@ class _Session:
                 if value is None:
                     raise _ExtractError(f"could not read '{into}' as money")
                 self.redactor.register(into, value, action.sensitivity)
+                self.observed_outputs[into] = value
 
     def _feedback(self, ok: bool, message: str) -> Feedback:
         return Feedback(ok, self.redactor.redact(message))  # the planner only sees redacted text

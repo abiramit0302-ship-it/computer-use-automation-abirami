@@ -1,6 +1,8 @@
 """The discovery loop, driven by a fixed list of planner actions against the live app."""
 
 from pathlib import Path
+from cua.agent.workflow import discover_and_save
+from cua.schema import load_capability
 
 import pytest
 
@@ -141,3 +143,28 @@ def test_scripted_mock_discovers_flow_a_from_its_script_file(tmp_path):
     assert result.status == DiscoveryStatus.RECORDED, result.intervention or result.failure
     assert result.capability.provenance.discovered_by == "scripted-mock:lookup-balance"
     assert len(result.capability.steps) == 4
+
+def test_discover_verify_save_writes_only_a_proven_artifact(tmp_path):
+    from cua.agent.scripted import ScriptedPlanner
+    planner = ScriptedPlanner.from_file("planner_scripts/lookup_balance.json")
+    report = discover_and_save(
+        discoverer=Discoverer(PROFILE, POLICY, BASE_URL, planner, runs_dir=tmp_path),
+        replayer=Replayer(PROFILE, POLICY, BASE_URL, allow_draft=True, runs_dir=tmp_path),
+        goal=GOAL, capability_id="member.savings_balance", inputs=INPUTS,
+        input_values={"member_id": "12345"}, out_dir=tmp_path)
+    assert report.status == "saved", report.message
+    assert report.verification.outputs == report.discovery.observed_outputs == {"balance": "2450.75"}
+    saved = load_capability(report.artifact)
+    assert saved.meta.status.value == "draft"
+
+
+def test_existing_artifact_is_never_overwritten(tmp_path):
+    (tmp_path / "member.savings_balance@1.0.0.json").write_text("{}")
+    report = discover_and_save(
+        discoverer=Discoverer(PROFILE, POLICY, BASE_URL, FakePlanner([]), runs_dir=tmp_path),
+        replayer=Replayer(PROFILE, POLICY, BASE_URL, allow_draft=True, runs_dir=tmp_path),
+        goal=GOAL, capability_id="member.savings_balance", inputs=INPUTS,
+        input_values={"member_id": "12345"}, out_dir=tmp_path)
+    assert report.status == "failed"
+    assert "already exists" in report.message
+    assert report.discovery is None  # refused before discovery even started
