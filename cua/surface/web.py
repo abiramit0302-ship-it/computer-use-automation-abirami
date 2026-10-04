@@ -110,6 +110,14 @@ class WebSurface(Surface):
     def navigation_pending(self) -> bool:
         return bool(self._navigations_in_flight)
 
+    def position_among_role(self, target: Target, role: str) -> int | None:
+        locator, _ = self._resolve(target)
+        element = locator.element_handle()
+        for index, candidate in enumerate(self.page.get_by_role(role).all()):
+            if candidate.evaluate("(node, other) => node === other", element):
+                return index
+        return None
+
     def _on_request(self, request) -> None:
         if request.is_navigation_request():
             self._navigations_in_flight.add(request)

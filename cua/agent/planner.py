@@ -43,3 +43,6 @@ class Planner(ABC):
     @abstractmethod
     def decide(self, request: PlannerRequest) -> PlannerAction:
         """Choose exactly one next action."""
+
+class PlannerError(Exception):
+    """The planner couldn't produce a decision (e.g. the model API was unreachable)."""

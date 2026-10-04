@@ -101,3 +101,8 @@ class Surface(ABC):
     def navigation_pending(self) -> bool:
         """Is a page load still in progress? Surfaces that can't tell simply return False."""
         return False
+    
+    def position_among_role(self, target: Target, role: str) -> int | None:
+        """Where this control sits among all controls with the same role (for a fallback
+        locator). Surfaces that can't tell return None, and no fallback is recorded."""
+        return None
