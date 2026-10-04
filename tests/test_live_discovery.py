@@ -133,3 +133,11 @@ def test_irreversible_click_stops_for_approval_even_if_mislabelled(tmp_path):
     assert result.status == DiscoveryStatus.NEEDS_HUMAN
     assert "approval required" in result.intervention.reason
     assert result.intervention.last_action == "Confirm the new account"
+
+def test_scripted_mock_discovers_flow_a_from_its_script_file(tmp_path):
+    from cua.agent.scripted import ScriptedPlanner
+    planner = ScriptedPlanner.from_file("planner_scripts/lookup_balance.json")
+    result = discover(planner, tmp_path)
+    assert result.status == DiscoveryStatus.RECORDED, result.intervention or result.failure
+    assert result.capability.provenance.discovered_by == "scripted-mock:lookup-balance"
+    assert len(result.capability.steps) == 4

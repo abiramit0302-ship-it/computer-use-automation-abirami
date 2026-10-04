@@ -1,0 +1,40 @@
+{
+  "name": "lookup-balance",
+  "description": "Stand-in for an LLM: look up a member and read one account balance. Each move only runs if its landmark is on screen.",
+  "moves": [
+    {
+      "when_visible": "Sign off",
+      "action": {
+        "action": "navigate", "intent": "Open the member inquiry screen", "route": "/search",
+        "expect": { "role": "cell", "name": "Member Inquiry" }
+      }
+    },
+    {
+      "when_visible": "Member Inquiry",
+      "action": {
+        "action": "fill", "intent": "Type the member ID", "value": "{{inputs.member_id}}",
+        "target": { "kind": "in_row", "role": "textbox", "row_label": "Member ID:" }
+      }
+    },
+    {
+      "when_visible": "Member ID:",
+      "action": {
+        "action": "click", "intent": "Run the search", "risk": "read_only",
+        "target": { "kind": "named", "role": "button", "name": "Search" },
+        "expect": { "role": "cell", "name": "Member Profile" }
+      }
+    },
+    {
+      "when_visible": "Member Profile",
+      "action": {
+        "action": "extract", "intent": "Read the savings balance", "output": "balance",
+        "parse": "money", "sensitivity": "financial",
+        "target": { "kind": "table_cell", "row": "Share Savings", "column": "Balance" }
+      }
+    },
+    {
+      "when_visible": "Balance",
+      "action": { "action": "finish", "intent": "Read the member's savings balance" }
+    }
+  ]
+}

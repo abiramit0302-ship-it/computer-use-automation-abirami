@@ -1,0 +1,48 @@
+{
+  "name": "open-sub-account",
+  "description": "Stand-in for an LLM: open a sub-account for a member up to the confirmation step. The Confirm click is irreversible, so the policy stops for human approval.",
+  "moves": [
+    {
+      "when_visible": "Sign off",
+      "action": {
+        "action": "navigate", "intent": "Open the sub-account form",
+        "route": "/member/{{inputs.member_id}}/open-account",
+        "expect": { "role": "cell", "name": "Account Type:" }
+      }
+    },
+    {
+      "when_visible": "Account Type:",
+      "action": {
+        "action": "select", "intent": "Choose the account type", "value": "Share Savings",
+        "target": { "kind": "in_row", "role": "combobox", "row_label": "Account Type:" }
+      }
+    },
+    {
+      "when_visible": "Initial Deposit ($):",
+      "action": {
+        "action": "fill", "intent": "Enter the opening deposit", "value": "100.00",
+        "target": { "kind": "in_row", "role": "textbox", "row_label": "Initial Deposit ($):" }
+      }
+    },
+    {
+      "when_visible": "Continue",
+      "action": {
+        "action": "click", "intent": "Continue to the review screen", "risk": "reversible",
+        "target": { "kind": "named", "role": "button", "name": "Continue" },
+        "expect": { "role": "cell", "name": "Initial Deposit:" }
+      }
+    },
+    {
+      "when_visible": "Review Account Request",
+      "action": {
+        "action": "click", "intent": "Confirm the new account", "risk": "irreversible",
+        "target": { "kind": "named", "role": "button", "name": "Confirm" },
+        "expect": { "role": "cell", "name": "Account Opened Successfully" }
+      }
+    },
+    {
+      "when_visible": "Account Opened Successfully",
+      "action": { "action": "finish", "intent": "Opened the sub-account and reached the confirmation screen" }
+    }
+  ]
+}
