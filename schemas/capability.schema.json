@@ -261,6 +261,27 @@
       "title": "InputParam",
       "type": "object"
     },
+    "LabelledValueLocator": {
+      "additionalProperties": false,
+      "description": "The value shown beside a label, e.g. the cell right after 'Confirmation No.:'.",
+      "properties": {
+        "strategy": {
+          "const": "labelled_value",
+          "default": "labelled_value",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "LabelledValueLocator",
+      "type": "object"
+    },
     "NavigateAction": {
       "additionalProperties": false,
       "properties": {
@@ -613,6 +634,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "labelled_value": "#/$defs/LabelledValueLocator",
                 "nth_of_role": "#/$defs/NthOfRoleLocator",
                 "role_in_scope": "#/$defs/RoleInScopeLocator",
                 "role_name": "#/$defs/RoleNameLocator",
@@ -632,6 +654,9 @@
               },
               {
                 "$ref": "#/$defs/TableCellLocator"
+              },
+              {
+                "$ref": "#/$defs/LabelledValueLocator"
               }
             ]
           },

@@ -100,9 +100,13 @@ class TableCellLocator(StrictModel):
     row_where: str
     column: str
 
+class LabelledValueLocator(StrictModel):
+    """The value shown beside a label, e.g. the cell right after 'Confirmation No.:'."""
+    strategy: Literal["labelled_value"] = "labelled_value"
+    label: str
 
 Locator = Annotated[
-    RoleNameLocator | RoleInScopeLocator | NthOfRoleLocator | TableCellLocator,
+    RoleNameLocator | RoleInScopeLocator | NthOfRoleLocator | TableCellLocator | LabelledValueLocator,
     Field(discriminator="strategy"),
 ]
 

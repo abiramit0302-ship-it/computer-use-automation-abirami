@@ -49,3 +49,12 @@ def test_business_outcomes_are_answers_not_crashes(tmp_path, member_id, code):
     assert result.outcome.code == code
     assert result.outcome.step_id == "submit_search"
     assert result.outputs == {}
+
+FLOW_B = load_capability("artifacts/harbor-member-console/account.open_sub_account@1.0.0.json")
+
+
+def test_flow_b_stops_for_approval_at_the_irreversible_step(tmp_path):
+    result = make(tmp_path).run(FLOW_B, {"member_id": "12345", "deposit": "100.00"})
+    assert result.status == ReplayStatus.NEEDS_HUMAN, result.failure
+    assert result.escalation.step_id == "confirm_new_account"
+    assert "require_approval" in result.escalation.reason

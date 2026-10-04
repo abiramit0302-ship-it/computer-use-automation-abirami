@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from collections.abc import Sequence
 from pathlib import Path
+from collections.abc import Callable, Sequence
 
 from cua.schema import Anchor, Target
 
@@ -106,3 +107,10 @@ class Surface(ABC):
         """Where this control sits among all controls with the same role (for a fallback
         locator). Surfaces that can't tell return None, and no fallback is recorded."""
         return None
+    
+    def start_operator_capture(self, on_event: Callable[[dict], None]) -> None:
+        """Start reporting what a PERSON does in this session (clicks, typing, navigation),
+        without the values they type. Surfaces that can't observe this do nothing."""
+
+    def stop_operator_capture(self) -> None:
+        """Stop reporting operator actions, delivering any still queued."""
