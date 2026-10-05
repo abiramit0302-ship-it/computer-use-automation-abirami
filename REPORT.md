@@ -3,7 +3,7 @@
 The system turns one LLM-driven run against a legacy UI into a typed, versioned
 **capability** that replays deterministically with no model in the loop. Discovery is the
 expensive, occasional path; replay is the production path an AI agent invokes. Everything
-below is implemented and tested (144 tests, 38 of them end-to-end against the running app) unless marked as design.
+below is implemented and tested (144 tests, 37 of them end-to-end against the running app) unless marked as design.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ goal --> Planner --> discovery loop --> Recorder --> Capability --> Replayer -->
   redacted evidence, returning a strict result contract.
 
 Key trade-offs. *Python + Playwright + Pydantic*: Pydantic gives one definition for types,
-runtime validation and exported JSON Schema (the format LLM tools use). *Hand-written agent loop, no framework: every step of observe, decide, act and record is our own readable code that I can defend line by line, rather than a framework's internals. *Synchronous
+runtime validation and exported JSON Schema (the format LLM tools use). *Hand-written agent loop, no framework*: every step of observe, decide, act and record is our own readable code that I can defend line by line, rather than a framework's internals. *Synchronous
 single process*: simplest correct thing; the seams (surface, planner, operator, secret
 store) are where scale would plug in, but no queueing or multi-tenant infrastructure is
 built, by design. *A purpose-built target app* (a fake credit union with tables, no IDs, no
