@@ -1,9 +1,9 @@
 {
-  "run_id": "replay-20261004T235831Z-193fd7",
+  "run_id": "replay-20261005T001226Z-1d369c",
   "capability": "account.open_sub_account@1.0.0",
   "status": "success",
   "outputs": {
-    "confirmation_number": "[confirmation_number:***27]"
+    "confirmation_number": "[confirmation_number:***93]"
   },
   "outcome": null,
   "failure": null,

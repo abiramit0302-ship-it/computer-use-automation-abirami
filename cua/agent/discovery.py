@@ -154,6 +154,8 @@ class _Session:
                                          capability=halt.capability,
                                          intervention=halt.intervention, failure=halt.failure,
                                          observed_outputs=dict(self.observed_outputs) if recorded else {})
+            log.event("run_finished", f"status: {result.status.value}", turns=self.turn)
+            log.write_summary(result.model_dump(mode="json"))
         return result
 
     def _preflight(self) -> None:

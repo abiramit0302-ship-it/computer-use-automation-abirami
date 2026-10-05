@@ -139,8 +139,8 @@
   },
   "provenance": {
     "discovered_by": "scripted-mock:lookup-balance",
-    "discovery_run_id": "discover-20261004T235827Z-b71b0a",
-    "recorded_at": "2026-10-04T23:58:28Z",
+    "discovery_run_id": "discover-20261005T001222Z-c1faa5",
+    "recorded_at": "2026-10-05T00:12:22Z",
     "goal": "Look up member {{inputs.member_id}} and read their savings balance"
   }
 }

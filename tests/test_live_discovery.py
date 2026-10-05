@@ -96,6 +96,8 @@ def test_giving_up_requests_a_human_with_evidence(tmp_path):
     assert result.status == DiscoveryStatus.NEEDS_HUMAN
     assert "gave up" in result.intervention.reason
     assert Path(result.intervention.screenshot).exists()
+    run_dir = tmp_path / result.run_id
+    assert (run_dir / "summary.json").exists() and "run_finished" in (run_dir / "events.jsonl").read_text()
 
 
 def test_repeated_failures_mean_the_planner_is_stuck(tmp_path):
