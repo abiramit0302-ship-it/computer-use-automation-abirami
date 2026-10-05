@@ -1,5 +1,5 @@
 {
-  "run_id": "replay-20261005T001223Z-9593a8",
+  "run_id": "replay-20261005T002313Z-241632",
   "capability": "member.savings_balance@1.0.0",
   "status": "success",
   "outputs": {
@@ -11,5 +11,5 @@
   "warnings": [],
   "recoveries": [],
   "handoffs": [],
-  "duration_ms": 461
+  "duration_ms": 408
 }

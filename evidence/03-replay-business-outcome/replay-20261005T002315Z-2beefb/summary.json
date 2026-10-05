@@ -1,5 +1,5 @@
 {
-  "run_id": "replay-20261005T001224Z-ccb62f",
+  "run_id": "replay-20261005T002315Z-2beefb",
   "capability": "member.lookup_balance@1.0.0",
   "status": "business_outcome",
   "outputs": {},
@@ -14,5 +14,5 @@
   "warnings": [],
   "recoveries": [],
   "handoffs": [],
-  "duration_ms": 460
+  "duration_ms": 443
 }

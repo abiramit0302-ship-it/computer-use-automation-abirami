@@ -1,5 +1,5 @@
 {
-  "run_id": "replay-20261005T001227Z-9251bd",
+  "run_id": "replay-20261005T002318Z-cae81f",
   "capability": "account.open_sub_account@1.0.0",
   "status": "failed",
   "outputs": {},
@@ -12,11 +12,11 @@
     "intent": "Confirm the new account (irreversible: creates the account)",
     "expected": null,
     "observed": null,
-    "screenshot": "evidence/08-handoff-early-click-blocked/replay-20261005T001227Z-9251bd/screenshots/027-failure-confirm_new_account.png"
+    "screenshot": "evidence/08-handoff-early-click-blocked/replay-20261005T002318Z-cae81f/screenshots/027-failure-confirm_new_account.png"
   },
   "escalation": null,
   "warnings": [],
   "recoveries": [],
   "handoffs": [],
-  "duration_ms": 747
+  "duration_ms": 700
 }

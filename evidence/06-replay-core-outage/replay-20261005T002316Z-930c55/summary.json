@@ -1,5 +1,5 @@
 {
-  "run_id": "replay-20261005T001226Z-576fc0",
+  "run_id": "replay-20261005T002316Z-930c55",
   "capability": "member.lookup_balance@1.0.0",
   "status": "failed",
   "outputs": {},
@@ -12,11 +12,11 @@
     "intent": "Run the search",
     "expected": "the application to respond normally",
     "observed": "'core_unavailable' on /member/[member_id:***45]",
-    "screenshot": "evidence/06-replay-core-outage/replay-20261005T001226Z-576fc0/screenshots/016-failure-submit_search.png"
+    "screenshot": "evidence/06-replay-core-outage/replay-20261005T002316Z-930c55/screenshots/016-failure-submit_search.png"
   },
   "escalation": null,
   "warnings": [],
   "recoveries": [],
   "handoffs": [],
-  "duration_ms": 493
+  "duration_ms": 472
 }

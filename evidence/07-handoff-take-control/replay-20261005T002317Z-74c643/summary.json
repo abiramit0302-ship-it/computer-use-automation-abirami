@@ -1,9 +1,9 @@
 {
-  "run_id": "replay-20261005T001226Z-1d369c",
+  "run_id": "replay-20261005T002317Z-74c643",
   "capability": "account.open_sub_account@1.0.0",
   "status": "success",
   "outputs": {
-    "confirmation_number": "[confirmation_number:***93]"
+    "confirmation_number": "[confirmation_number:***27]"
   },
   "outcome": null,
   "failure": null,
@@ -13,5 +13,5 @@
   "handoffs": [
     "step 'confirm_new_account' completed by operator:demo-operator (2 actions captured); not repeated by automation"
   ],
-  "duration_ms": 785
+  "duration_ms": 761
 }
