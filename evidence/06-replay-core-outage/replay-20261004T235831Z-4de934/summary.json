@@ -1,0 +1,22 @@
+{
+  "run_id": "replay-20261004T235831Z-4de934",
+  "capability": "member.lookup_balance@1.0.0",
+  "status": "failed",
+  "outputs": {},
+  "outcome": null,
+  "failure": {
+    "category": "app_error",
+    "message": "core_unavailable: The core banking system behind the console is down.",
+    "retryable": true,
+    "step_id": "submit_search",
+    "intent": "Run the search",
+    "expected": "the application to respond normally",
+    "observed": "'core_unavailable' on /member/[member_id:***45]",
+    "screenshot": "evidence/06-replay-core-outage/replay-20261004T235831Z-4de934/screenshots/016-failure-submit_search.png"
+  },
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [],
+  "duration_ms": 494
+}

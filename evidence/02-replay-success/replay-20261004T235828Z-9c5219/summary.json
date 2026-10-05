@@ -1,0 +1,15 @@
+{
+  "run_id": "replay-20261004T235828Z-9c5219",
+  "capability": "member.savings_balance@1.0.0",
+  "status": "success",
+  "outputs": {
+    "balance": "[FINANCIAL:balance]"
+  },
+  "outcome": null,
+  "failure": null,
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [],
+  "duration_ms": 479
+}

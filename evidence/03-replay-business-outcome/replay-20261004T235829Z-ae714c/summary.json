@@ -1,0 +1,18 @@
+{
+  "run_id": "replay-20261004T235829Z-ae714c",
+  "capability": "member.lookup_balance@1.0.0",
+  "status": "business_outcome",
+  "outputs": {},
+  "outcome": {
+    "id": "member_not_found",
+    "code": "MEMBER_NOT_FOUND",
+    "description": "No member exists with this ID.",
+    "step_id": "submit_search"
+  },
+  "failure": null,
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [],
+  "duration_ms": 479
+}

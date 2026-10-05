@@ -1,0 +1,146 @@
+{
+  "schema_version": "1.0",
+  "meta": {
+    "id": "member.savings_balance",
+    "version": "1.0.0",
+    "status": "draft",
+    "summary": "Read the member's savings balance",
+    "app_profile": "harbor-member-console"
+  },
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "identifier",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "balance",
+      "type": "money",
+      "description": "Read the savings balance",
+      "sensitivity": "financial"
+    }
+  ],
+  "steps": [
+    {
+      "id": "open_the_member_inquiry_screen",
+      "intent": "Open the member inquiry screen",
+      "action": {
+        "type": "navigate",
+        "route": "/search"
+      },
+      "risk": "read_only",
+      "expect": {
+        "url": "/search",
+        "visible": [
+          {
+            "role": "cell",
+            "name": "Member Inquiry"
+          }
+        ]
+      },
+      "outcomes": []
+    },
+    {
+      "id": "type_the_member_id",
+      "intent": "Type the member ID",
+      "action": {
+        "type": "fill",
+        "value": "{{inputs.member_id}}"
+      },
+      "target": {
+        "description": "textbox in the row labelled 'Member ID:'",
+        "locators": [
+          {
+            "strategy": "role_in_scope",
+            "role": "textbox",
+            "scope": {
+              "role": "row",
+              "name": "Member ID:"
+            }
+          },
+          {
+            "strategy": "nth_of_role",
+            "role": "textbox",
+            "index": 0
+          }
+        ],
+        "rationale": "Control has no accessible name; anchored to the innermost row carrying its label. Position fallback captured at discovery time: fragile, used only if the primary fails, and logged as drift when it is."
+      },
+      "risk": "reversible",
+      "outcomes": []
+    },
+    {
+      "id": "run_the_search",
+      "intent": "Run the search",
+      "action": {
+        "type": "click"
+      },
+      "target": {
+        "description": "button 'Search'",
+        "locators": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Search"
+          },
+          {
+            "strategy": "nth_of_role",
+            "role": "button",
+            "index": 0
+          }
+        ],
+        "rationale": "Control has its own accessible name: the most robust rung. Position fallback captured at discovery time: fragile, used only if the primary fails, and logged as drift when it is."
+      },
+      "risk": "read_only",
+      "expect": {
+        "url": "/member/{{inputs.member_id}}",
+        "visible": [
+          {
+            "role": "cell",
+            "name": "Member Profile"
+          }
+        ]
+      },
+      "outcomes": []
+    },
+    {
+      "id": "read_the_savings_balance",
+      "intent": "Read the savings balance",
+      "action": {
+        "type": "extract",
+        "into": "balance",
+        "parse": "money"
+      },
+      "target": {
+        "description": "cell in row 'Share Savings', column 'Balance'",
+        "locators": [
+          {
+            "strategy": "table_cell",
+            "row_where": "Share Savings",
+            "column": "Balance"
+          }
+        ],
+        "rationale": "Found by meaning (row label x column header), never by position."
+      },
+      "risk": "read_only",
+      "outcomes": []
+    }
+  ],
+  "outcomes": {},
+  "success": {
+    "outputs_present": [
+      "balance"
+    ],
+    "visible": []
+  },
+  "provenance": {
+    "discovered_by": "scripted-mock:lookup-balance",
+    "discovery_run_id": "discover-20261004T235827Z-b71b0a",
+    "recorded_at": "2026-10-04T23:58:28Z",
+    "goal": "Look up member {{inputs.member_id}} and read their savings balance"
+  }
+}

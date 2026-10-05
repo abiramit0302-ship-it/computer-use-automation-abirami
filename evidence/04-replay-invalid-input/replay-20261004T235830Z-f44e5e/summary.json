@@ -1,0 +1,22 @@
+{
+  "run_id": "replay-20261004T235830Z-f44e5e",
+  "capability": "member.lookup_balance@1.0.0",
+  "status": "failed",
+  "outputs": {},
+  "outcome": null,
+  "failure": {
+    "category": "invalid_input",
+    "message": "input 'member_id' does not match its required format",
+    "retryable": false,
+    "step_id": null,
+    "intent": null,
+    "expected": null,
+    "observed": null,
+    "screenshot": null
+  },
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [],
+  "duration_ms": 0
+}

@@ -1,0 +1,22 @@
+{
+  "run_id": "replay-20261004T235832Z-4bc253",
+  "capability": "account.open_sub_account@1.0.0",
+  "status": "failed",
+  "outputs": {},
+  "outcome": null,
+  "failure": {
+    "category": "operator_declined",
+    "message": "operator:demo-operator declined step 'confirm_new_account'; nothing was committed",
+    "retryable": false,
+    "step_id": "confirm_new_account",
+    "intent": "Confirm the new account (irreversible: creates the account)",
+    "expected": null,
+    "observed": null,
+    "screenshot": "evidence/08-handoff-early-click-blocked/replay-20261004T235832Z-4bc253/screenshots/027-failure-confirm_new_account.png"
+  },
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [],
+  "duration_ms": 750
+}

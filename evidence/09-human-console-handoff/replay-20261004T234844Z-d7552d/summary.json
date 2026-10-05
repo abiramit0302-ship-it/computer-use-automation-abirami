@@ -1,0 +1,17 @@
+{
+  "run_id": "replay-20261004T234844Z-d7552d",
+  "capability": "account.open_sub_account@1.0.0",
+  "status": "success",
+  "outputs": {
+    "confirmation_number": "[confirmation_number:***83]"
+  },
+  "outcome": null,
+  "failure": null,
+  "escalation": null,
+  "warnings": [],
+  "recoveries": [],
+  "handoffs": [
+    "step 'confirm_new_account' completed by operator:abi (2 actions captured); not repeated by automation"
+  ],
+  "duration_ms": 19823
+}
